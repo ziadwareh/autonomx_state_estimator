@@ -1,0 +1,11 @@
+<launch>
+    <arg name="sampling_rate" default="100" />
+    
+    <include file="$(find vehicle_control_pkg)/launch/system.launch" />
+
+    <node name = "state_estimator" pkg="state_estimator" type="state_estimator.py" output="screen" respawn="true" >
+        <!-- <arg name="frequency" default="$(arg sampling_rate)" /> -->
+    </node>
+
+    
+</launch>
