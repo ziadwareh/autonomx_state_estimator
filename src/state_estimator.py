@@ -23,6 +23,27 @@ curr_linear_velocity = Vector3Stamped()
 
 curr_linear_acceleration = Vector3()
 
+past_inputs = np.zeros((3,2))
+past_outputs = np.zeros((3,2))
+
+fs = 60
+T = 1/fs
+fc = 2
+k = 2/T
+# prewarping
+w_d = 2*np.pi*fc/fs
+wa =k*np.tan(w_d/2)
+a = (k*k) - (wa*k*np.sqrt(2)) + (wa*wa)
+b = -2*k*k + (2*wa*wa)
+c = (k*k) + (wa*k*np.sqrt(2)) + (wa*wa)
+
+A = -b/c
+B = -a/c
+C = (wa*wa)/c
+D = (2*wa*wa)/c
+E = (wa*wa)/c
+
+
 def initial_states_callback(initial_states:Odometry):
     global current_quaternion
     global obtained_initial_orientation_flag
@@ -38,10 +59,10 @@ def imu_callback(states:Imu):
     global curr_linear_acceleration
     global old_time
     global new_time
+    global past_inputs
+    global past_outputs
 
     if obtained_initial_orientation_flag:
-        # print(curr_linear_velocity.vector)
-        # print("------------------------")
 
         '''
             This is following the rule that q_new = q_0 + t/2 * w * q_0
@@ -76,6 +97,30 @@ def imu_callback(states:Imu):
 
         new_time = time.time()
 
+        # Butterworth filter
+        # Filter characteristics
+        # fs = new_time - old_time
+        # T = 1/fs
+        # fc = 2
+        # k = 2/T
+        # # prewarping
+        # w_d = 2*np.pi*fc/fs
+        # wa =k*np.tan(w_d/2)
+        # a = (k*k) - (wa*k*np.sqrt(2)) + (wa*wa)
+        # b = -2*k*k + (2*wa*wa)
+        # c = (k*k) + (wa*k*np.sqrt(2)) + (wa*wa)
+
+        # A = -b/c
+        # B = -a/c
+        # C = (wa*wa)/c
+        # D = (2*wa*wa)/c
+        # E = (wa*wa)/c
+
+        curr_linear_acceleration.x = A*past_outputs[(0,1)] + B*past_outputs[(0,0)] + C*states.linear_acceleration.x + D*past_inputs[(0,1)] + E*past_inputs[(0,0)]
+        curr_linear_acceleration.y = A*past_outputs[(1,1)] + B*past_outputs[(1,0)] + C*states.linear_acceleration.y + D*past_inputs[(1,1)] + E*past_inputs[(1,0)]
+        curr_linear_acceleration.z = A*past_outputs[(2,1)] + B*past_outputs[(2,0)] + C*(states.linear_acceleration.z+9.81) + D*past_inputs[(2,1)] + E*past_inputs[(2,0)]
+
+
         # Exponential moving average low pass filter (EMA)
         # alpha = 0.5
         # new_acceleration_np = np.array([states.linear_acceleration.x, states.linear_acceleration.y, states.linear_acceleration.z+9.81])
@@ -92,23 +137,46 @@ def imu_callback(states:Imu):
         # curr_linear_velocity.vector.x += 0.5 * (curr_linear_acceleration.x + new_flitered_linear_acceleration[0]) *(new_time - old_time)
         # curr_linear_velocity.vector.z += 0.5 * (curr_linear_acceleration.z + new_flitered_linear_acceleration[2]) *(new_time - old_time)
 
+        # Trapezoidal Integration Butterworth
+        curr_linear_velocity.vector.y += 0.5 * (curr_linear_acceleration.y + past_outputs[(1,1)]) * T
+        curr_linear_velocity.vector.x += 0.5 * (curr_linear_acceleration.x + past_outputs[(0,1)]) * T
+        curr_linear_velocity.vector.z += 0.5 * (curr_linear_acceleration.z + past_outputs[(2,1)]) * T
+
+
         # Euler Approximation
         # curr_linear_velocity.vector.y += states.linear_acceleration.y * (new_time - old_time)
         # curr_linear_velocity.vector.x += states.linear_acceleration.x * (new_time - old_time)
         # curr_linear_velocity.vector.z += (states.linear_acceleration.z + 9.81) * (new_time - old_time)
 
         # RK4
-        rk4_integration(states.linear_acceleration, (new_time-old_time))
+        # rk4_integration(states.linear_acceleration, (new_time-old_time))
 
         # Update Acceleration
-        curr_linear_acceleration.y = states.linear_acceleration.y
-        curr_linear_acceleration.x = states.linear_acceleration.x
-        curr_linear_acceleration.z = states.linear_acceleration.z + 9.81
+        # curr_linear_acceleration.y = states.linear_acceleration.y
+        # curr_linear_acceleration.x = states.linear_acceleration.x
+        # curr_linear_acceleration.z = states.linear_acceleration.z + 9.81
 
         # Update Acceleration EMA
         # curr_linear_acceleration.y = new_flitered_linear_acceleration[1]
         # curr_linear_acceleration.x = new_flitered_linear_acceleration[0]
         # curr_linear_acceleration.z = new_flitered_linear_acceleration[2]
+
+        # upadte Acceleration butterworth
+        past_outputs[(0,0)] = past_outputs[(0,1)]
+        past_outputs[(1,0)] = past_outputs[(1,1)]
+        past_outputs[(2,0)] = past_outputs[(2,1)]
+
+        past_outputs[(0,1)] = curr_linear_acceleration.x
+        past_outputs[(1,1)] = curr_linear_acceleration.y
+        past_outputs[(2,1)] = curr_linear_acceleration.z
+
+        past_inputs[(0,0)] = past_inputs[(0,1)]
+        past_inputs[(1,0)] = past_inputs[(1,1)]
+        past_inputs[(2,0)] = past_inputs[(2,1)]
+
+        past_inputs[(0,1)] = states.linear_acceleration.x
+        past_inputs[(1,1)] = states.linear_acceleration.y
+        past_inputs[(2,1)] = states.linear_acceleration.z+9.81
 
         # update time
         old_time = new_time
@@ -119,6 +187,9 @@ def imu_callback(states:Imu):
         result = np.matmul(rotation, velocity)
         output = Vector3(result[0], result[1], result[2])
         publish_current_linear_velocity.publish(output)
+
+        # publish filtered IMU data
+        publish_filtered_imu_data.publish(curr_linear_acceleration)
 
 '''
     This is a function to perform numerical integration using the fourth order Runge-kutta method
@@ -176,6 +247,7 @@ if __name__ == '__main__':
     ####################### Testing Topics #######################
 
     estimated_orientation_topic = ("/orientation", Quaternion)
+    filtered_imu_data_topic = ("/Imu_filtered", Vector3)
 
     ####################### Node subscriptions #######################
 
@@ -185,11 +257,12 @@ if __name__ == '__main__':
 
     ####################### Node publications #######################
 
-    publish_current_heading = rospy.Publisher(yaw_topic[0], yaw_topic[1], queue_size=10)
+    publish_current_heading = rospy.Publisher(yaw_topic[0], yaw_topic[1], queue_size=0)
     publish_current_linear_velocity = rospy.Publisher(linear_velocity_topic[0], linear_velocity_topic[1], queue_size=0)
 
     ####################### Testing Topics #######################
 
-    publish_estimated_orientation = rospy.Publisher(estimated_orientation_topic[0], estimated_orientation_topic[1], queue_size=10)
+    publish_estimated_orientation = rospy.Publisher(estimated_orientation_topic[0], estimated_orientation_topic[1], queue_size=0)
+    publish_filtered_imu_data = rospy.Publisher(filtered_imu_data_topic[0], filtered_imu_data_topic[1], queue_size=0)
 
     rospy.spin()
