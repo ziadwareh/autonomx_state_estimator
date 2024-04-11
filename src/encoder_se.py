@@ -14,12 +14,24 @@ x = 0
 y = 0
 z = 0
 theta = math.pi/2
-old_time = time.time()
+sim_time = 0
+# old_time = time.time()
 new_time = 0
 first_time = True
-time_zero = time.time()
+
+# time_zero = time.time() #TODO
+time_zero = 0
 
 
+# call back functions
+def clock_callback(msg:Clock):
+    pass
+    global sim_time
+
+    sim_time = msg.clock
+    sim_time = sim_time.secs + sim_time.nsecs * 1e-9
+
+    # sim_time = time.time()
 
 
 def encoder_callback(msg:Float64MultiArray):
@@ -92,11 +104,15 @@ def integrate(vel, omega):
     global time_zero
 
     if(first_time):
-        old_time = time.time()
+        # old_time = time.time()
+        old_time = sim_time #TODO
+
         time_zero = old_time
         first_time = False
 
-    new_time = time.time()
+    # new_time = time.time()
+    new_time = sim_time #TODO
+
     dt = new_time - old_time
     dt *= ratio
     # dt = 1/60
@@ -147,7 +163,13 @@ def integrate(vel, omega):
         theta -= 2*PI
 
     theta_out = theta * (180/PI)
-    out.z = theta_out
+    # out.z = theta_out #TODO uncomment
+    # if(dt == 0):
+    #     out.z = 0
+    # else:
+    #     out.z = 1/dt
+
+    out.z = elapsed
 
     vehicle_position_publisher.publish(out)
 
@@ -155,6 +177,9 @@ def integrate(vel, omega):
     
 
 if __name__ == "__main__":
+    # Global Variables #
+    # global elapsed
+
     # Node initiation #
     rospy.loginfo("encoder_se Start")
     rospy.init_node("encoder_se")
@@ -163,18 +188,25 @@ if __name__ == "__main__":
     wheel_vel_topic = ("/wheel_vel" , Float64MultiArray)
     state_estimation_encoder_topic = ('/vehicle_velocities', Vector3)
     xyz_estimation_encoder_topic = ('/vehicle_position', Vector3)
-    clock = ('/clock', )
+    clock = ('/clock', Clock)
 
     # Subscribers #
+    
+    clock_subscriber = rospy.Subscriber(clock[0], clock[1] , callback=clock_callback)
+    rospy.wait_for_message(clock[0], clock[1]) # Manually call clock_callback to initialize sim_time
+
     wheel_vel_subscriber = rospy.Subscriber(wheel_vel_topic[0], wheel_vel_topic[1], callback=encoder_callback)
 
     # publishers #
     vehicle_velocities_publisher = rospy.Publisher(state_estimation_encoder_topic[0], state_estimation_encoder_topic[1], queue_size=10)
     vehicle_position_publisher = rospy.Publisher(xyz_estimation_encoder_topic[0], xyz_estimation_encoder_topic[1], queue_size=10)
 
+    # Manually call clock_callback to initialize sim_time
+    rospy.wait_for_message(clock[0], clock[1])
+
     rospy.spin()
 
     rospy.loginfo("encoder_se Exit")
 
     duration = new_time - time_zero
-    rospy.loginfo(duration)
+    rospy.loginfo("Duration: " + str(duration) )
