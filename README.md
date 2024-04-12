@@ -16,6 +16,8 @@
 
 # ---------------------------------------------------------------------------------------- #
 # Encoder #
+
+
 day 11/3: 
 	-> added rosgraph_msg to package.xml
 	-> subscribed to /clock. "time clock" clock variable of type time (seconds & nseconds)

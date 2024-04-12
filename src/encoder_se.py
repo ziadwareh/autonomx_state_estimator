@@ -4,7 +4,16 @@ import math
 import time
 from std_msgs.msg import Float64MultiArray
 from geometry_msgs.msg import Vector3
+from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Point
 from rosgraph_msgs.msg import Clock
+from nav_msgs.msg import Odometry
+
+
+# geometry_msgs/Pose pose
+# geometry_msgs/Point position
+
+# /odom [nav_msgs/Odometry]
 
 
 
@@ -33,6 +42,19 @@ def clock_callback(msg:Clock):
 
     # sim_time = time.time()
 
+def odom_callback(msg:Odometry):
+    pass
+    global x
+    global y
+    global z
+
+    pose = msg.pose.pose
+
+    x = pose.position.x
+    y = pose.position.y
+    z = pose.position.z
+
+    odom_subscriber.unregister()
 
 def encoder_callback(msg:Float64MultiArray):
     pass
@@ -188,12 +210,16 @@ if __name__ == "__main__":
     wheel_vel_topic = ("/wheel_vel" , Float64MultiArray)
     state_estimation_encoder_topic = ('/vehicle_velocities', Vector3)
     xyz_estimation_encoder_topic = ('/vehicle_position', Vector3)
-    clock = ('/clock', Clock)
+    clock_topic = ('/clock', Clock)
+    odom_topic = ('/odom', Odometry)
 
     # Subscribers #
     
-    clock_subscriber = rospy.Subscriber(clock[0], clock[1] , callback=clock_callback)
-    rospy.wait_for_message(clock[0], clock[1]) # Manually call clock_callback to initialize sim_time
+    clock_subscriber = rospy.Subscriber(clock_topic[0], clock_topic[1] , callback=clock_callback)
+    rospy.wait_for_message(clock_topic[0], clock_topic[1]) # Manually call clock_callback to initialize sim_time
+
+    odom_subscriber = rospy.Subscriber(odom_topic[0], odom_topic[1] , callback=odom_callback)
+    rospy.wait_for_message(odom_topic[0], odom_topic[1]) # Manually call clock_callback to initialize sim_time
 
     wheel_vel_subscriber = rospy.Subscriber(wheel_vel_topic[0], wheel_vel_topic[1], callback=encoder_callback)
 
@@ -202,7 +228,7 @@ if __name__ == "__main__":
     vehicle_position_publisher = rospy.Publisher(xyz_estimation_encoder_topic[0], xyz_estimation_encoder_topic[1], queue_size=10)
 
     # Manually call clock_callback to initialize sim_time
-    rospy.wait_for_message(clock[0], clock[1])
+    # rospy.wait_for_message(clock[0], clock[1])
 
     rospy.spin()
 
