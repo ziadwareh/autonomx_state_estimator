@@ -75,7 +75,8 @@ def encoder_callback(msg:Float64MultiArray):
     # rospy.loginfo(msg.data)
 
     r_wheel = 0.340175
-    d = 0.82491 # 2*d = track width (distance between two back wheels)
+    # d = 0.82491 # 2*d = track width (distance between two back wheels)
+    d = 0.8
     l = 2.26972 # Wheel Base
 
     # b = 2*82491
@@ -170,22 +171,6 @@ def integrate(vel, omega):
     omega_old = omega
 
     # -------------------  RK4 ----------------------- #
-    # k1_x = vel * math.cos(theta) 
-    # k1_y = vel * math.sin(theta)
-    # 
-    # # k1_theta = get_angular_velocity(vel)  
-
-    # k2_x = vel * math.cos(theta + theta * dt / 2)
-    # k2_y = vel * math.sin(theta + theta * dt / 2)
-    # # k2_theta = get_angular_velocity(vel, k1_x, k1_y)  # Update angular velocity calculation
-
-    # k3_x = vel * math.cos(theta + theta * dt / 2)
-    # k3_y = vel * math.sin(theta + theta * dt / 2)
-    # # k3_theta = get_angular_velocity(vel, k2_x, k2_y)  # Update angular velocity calculation
-
-    # k4_x = vel * math.cos(theta + theta * dt)
-    # k4_y = vel * math.sin(theta + theta * dt)
-    # # k4_theta = get_angular_velocity(vel, k3_x, k3_y)  # Update angular velocity calculation
 
     # x += (k1_x + 2*k2_x + 2*k3_x + k4_x) * dt / 6
     # y += (k1_y + 2*k2_y + 2*k3_y + k4_y) * dt / 6
