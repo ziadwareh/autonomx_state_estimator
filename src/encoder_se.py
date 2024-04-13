@@ -4,6 +4,7 @@ import math
 import time
 
 from std_msgs.msg import Float64MultiArray
+from std_msgs.msg import Header
 
 from geometry_msgs.msg import Vector3
 from geometry_msgs.msg import Twist
@@ -15,6 +16,7 @@ from rosgraph_msgs.msg import Clock
 from nav_msgs.msg import Odometry
 
 
+# std_msgs/Header
 # ------------------------- Global Variables ------------------------- #
 PI = math.pi
 x = 0
@@ -33,8 +35,31 @@ first_time = True
 # time_zero = time.time() #TODO
 time_zero = 0
 
+#odom_time-Branch #TODO
+odom_time_start = 0 
+odom_time_curr = 0
+odom_dt = 0
+odom_first_time = True
+
 
 # ------------------------- call back functions ------------------------- #
+def odom_time_callback(msg:Odometry): #odom_time-Branch #TODO
+    pass
+    global odom_time_curr
+    global odom_time_start
+    global odom_dt
+    global odom_first_time
+
+    if(odom_first_time):
+        odom_time_start = msg.header.stamp.secs + msg.header.stamp.nsecs * 1e-9
+        odom_first_time = False
+    
+    odom_time_curr = msg.header.stamp.secs + msg.header.stamp.nsecs * 1e-9
+
+    odom_dt = odom_time_curr - odom_time_start
+    # rospy.loginfo("Time: " + str(odom_dt) )
+
+
 def clock_callback(msg:Clock):
     pass
     global sim_time
@@ -75,8 +100,8 @@ def encoder_callback(msg:Float64MultiArray):
     # rospy.loginfo(msg.data)
 
     r_wheel = 0.340175
-    # d = 0.82491 # 2*d = track width (distance between two back wheels)
-    d = 0.8
+    d = 0.82491 # 2*d = track width (distance between two back wheels)
+    # d = 0.8
     l = 2.26972 # Wheel Base
 
     # b = 2*82491
@@ -141,6 +166,8 @@ def integrate(vel, omega):
     global vel_y_old
     global omega_old
 
+    # global test_dt #TODO remove
+
     if(first_time):
         # old_time = time.time()
         old_time = sim_time #TODO
@@ -191,13 +218,16 @@ def integrate(vel, omega):
         theta -= 2*PI
 
     theta_out = theta * (180/PI)
-    # out.z = theta_out #TODO uncomment
-    # if(dt == 0):
+    out.z = theta_out #TODO uncomment
+
+    # if(dt == 0): #TODO remove
     #     out.z = 0
     # else:
     #     out.z = 1/dt
 
-    out.z = elapsed
+    # out.z = elapsed #TODO remove
+
+    # out.z = odom_dt #TODO remove
 
     vehicle_position_publisher.publish(out)
 
@@ -206,7 +236,7 @@ def integrate(vel, omega):
 # ------------------------- Main ------------------------- #
 if __name__ == "__main__":
     # ------------------------- Global Variables ------------------------- #
-
+    
 
     # ------------------------- Node initiation ------------------------- #
     rospy.loginfo("encoder_se Start")
@@ -226,6 +256,7 @@ if __name__ == "__main__":
     rospy.wait_for_message(clock_topic[0], clock_topic[1]) # Manually call clock_callback to initialize sim_time
 
     odom_subscriber = rospy.Subscriber(odom_topic[0], odom_topic[1] , callback=odom_callback)
+    odom_time_subscriber = rospy.Subscriber(odom_topic[0], odom_topic[1] , callback=odom_time_callback) #odom_time-Branch #TODO remove
     rospy.wait_for_message(odom_topic[0], odom_topic[1]) # Manually call odom_callback to initialize x,y,z
 
     wheel_vel_subscriber = rospy.Subscriber(wheel_vel_topic[0], wheel_vel_topic[1], callback=encoder_callback)
