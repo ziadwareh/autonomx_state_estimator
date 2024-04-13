@@ -25,3 +25,11 @@ day 11/3:
 	-> changed time to simulation time in cuboid:
 	simulationTime = sim.getSimulationTime()
     	simROS.publish(pub_clock,{clock=simulationTime})
+
+day 12/3:
+	v1:
+	-> added an odom_subscriber, initialized values of position x, y, z"
+    	
+    	
+> 
+

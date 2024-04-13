@@ -2,37 +2,39 @@
 import rospy
 import math
 import time
+
 from std_msgs.msg import Float64MultiArray
+
 from geometry_msgs.msg import Vector3
+from geometry_msgs.msg import Twist
 from geometry_msgs.msg import Pose
 from geometry_msgs.msg import Point
+
 from rosgraph_msgs.msg import Clock
+
 from nav_msgs.msg import Odometry
 
 
-# geometry_msgs/Pose pose
-# geometry_msgs/Point position
-
-# /odom [nav_msgs/Odometry]
-
-
-
-# Global Variables:
+# ------------------------- Global Variables ------------------------- #
 PI = math.pi
 x = 0
 y = 0
 z = 0
 theta = math.pi/2
+
+vel_x_old = 0
+vel_y_old = 0
+omega_old = 0
+
 sim_time = 0
 # old_time = time.time()
 new_time = 0
 first_time = True
-
 # time_zero = time.time() #TODO
 time_zero = 0
 
 
-# call back functions
+# ------------------------- call back functions ------------------------- #
 def clock_callback(msg:Clock):
     pass
     global sim_time
@@ -44,6 +46,7 @@ def clock_callback(msg:Clock):
 
 def odom_callback(msg:Odometry):
     pass
+    # Position Initialization:
     global x
     global y
     global z
@@ -53,6 +56,17 @@ def odom_callback(msg:Odometry):
     x = pose.position.x
     y = pose.position.y
     z = pose.position.z
+
+    # Velocities Initialization:
+    global vel_x_old
+    global vel_y_old
+    global omega_old
+
+    twist = msg.twist.twist
+
+    vel_x_old = twist.linear.x
+    vel_y_old = twist.linear.y
+    omega_old = twist.angular.z
 
     odom_subscriber.unregister()
 
@@ -112,10 +126,8 @@ def encoder_callback(msg:Float64MultiArray):
 
     # rospy.loginfo(vel)
 
-# ---------------------------------------------- #
-# Regular Functions
+# ------------------------- Regular Functions ------------------------- #
 def integrate(vel, omega):
-    ratio = 1.6 #TODO Remove
     pass
     global x
     global y
@@ -124,11 +136,13 @@ def integrate(vel, omega):
     global new_time
     global first_time
     global time_zero
+    global vel_x_old
+    global vel_y_old
+    global omega_old
 
     if(first_time):
         # old_time = time.time()
         old_time = sim_time #TODO
-
         time_zero = old_time
         first_time = False
 
@@ -136,17 +150,24 @@ def integrate(vel, omega):
     new_time = sim_time #TODO
 
     dt = new_time - old_time
-    dt *= ratio
     # dt = 1/60
 
     vel_x = vel * math.cos(theta) 
     vel_y = vel * math.sin(theta)
 
     # -------------------  Euler ----------------------- #
-    x = x + vel_x*dt
-    y = y + vel_y*dt
-    theta = theta + omega*dt
+    # x = x + vel_x*dt
+    # y = y + vel_y*dt
+    # theta = theta + omega*dt
 
+    # -------------------  Trapazoid ----------------------- #
+    x = x + ( (vel_x + vel_x_old)/2 )*dt
+    y = y + ( (vel_y + vel_y_old)/2 )*dt
+    theta = theta + ( (omega + omega_old)/2 )*dt
+
+    vel_x_old = vel_x
+    vel_y_old = vel_y
+    omega_old = omega
 
     # -------------------  RK4 ----------------------- #
     # k1_x = vel * math.cos(theta) 
@@ -197,39 +218,39 @@ def integrate(vel, omega):
 
 
     
-
+# ------------------------- Main ------------------------- #
 if __name__ == "__main__":
-    # Global Variables #
-    # global elapsed
+    # ------------------------- Global Variables ------------------------- #
 
-    # Node initiation #
+
+    # ------------------------- Node initiation ------------------------- #
     rospy.loginfo("encoder_se Start")
     rospy.init_node("encoder_se")
 
-    # Topics #
+
+    # ------------------------- Topics ------------------------- #
     wheel_vel_topic = ("/wheel_vel" , Float64MultiArray)
     state_estimation_encoder_topic = ('/vehicle_velocities', Vector3)
     xyz_estimation_encoder_topic = ('/vehicle_position', Vector3)
     clock_topic = ('/clock', Clock)
     odom_topic = ('/odom', Odometry)
 
-    # Subscribers #
+    # ------------------------- Subscribers ------------------------- #
     
     clock_subscriber = rospy.Subscriber(clock_topic[0], clock_topic[1] , callback=clock_callback)
     rospy.wait_for_message(clock_topic[0], clock_topic[1]) # Manually call clock_callback to initialize sim_time
 
     odom_subscriber = rospy.Subscriber(odom_topic[0], odom_topic[1] , callback=odom_callback)
-    rospy.wait_for_message(odom_topic[0], odom_topic[1]) # Manually call clock_callback to initialize sim_time
+    rospy.wait_for_message(odom_topic[0], odom_topic[1]) # Manually call odom_callback to initialize x,y,z
 
     wheel_vel_subscriber = rospy.Subscriber(wheel_vel_topic[0], wheel_vel_topic[1], callback=encoder_callback)
 
-    # publishers #
+    # ------------------------- publishers ------------------------- #
+
     vehicle_velocities_publisher = rospy.Publisher(state_estimation_encoder_topic[0], state_estimation_encoder_topic[1], queue_size=10)
     vehicle_position_publisher = rospy.Publisher(xyz_estimation_encoder_topic[0], xyz_estimation_encoder_topic[1], queue_size=10)
 
-    # Manually call clock_callback to initialize sim_time
-    # rospy.wait_for_message(clock[0], clock[1])
-
+    # ------------------------- Rest of Code ------------------------- #
     rospy.spin()
 
     rospy.loginfo("encoder_se Exit")
