@@ -1,9 +1,12 @@
 <launch>
     <arg name="sampling_rate" default="100" />
+    <arg name="node" default="butterworth" />
     
-    <include file="$(find vehicle_control_pkg)/launch/system.launch" />
+    <include file="$(find vehicle_control_pkg)/launch/system.launch"> 
+        <arg name="controller_type" default="open_loop" />
+    </include>
 
-    <node name = "state_estimator" pkg="autonomx_state_estimator" type="state_estimator.py" output="screen" respawn="true" >
+    <node name = "state_estimator" pkg="autonomx_state_estimator" type="state_estimator_$(arg node).py" output="screen" respawn="true" >
         <!-- <arg name="frequency" default="$(arg sampling_rate)" /> -->
     </node>
 

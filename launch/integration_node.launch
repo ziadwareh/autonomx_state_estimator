@@ -1,0 +1,7 @@
+<launch>
+
+    <node name = "state_estimator" pkg="autonomx_state_estimator" type="state_estimator_integration.py" output="screen" respawn="true" >
+        <!-- <arg name="frequency" default="$(arg sampling_rate)" /> -->
+    </node>
+
+</launch>
