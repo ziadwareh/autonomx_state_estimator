@@ -26,7 +26,7 @@ curr_linear_acceleration = Vector3()
 past_inputs = np.zeros((3,2))
 past_outputs = np.zeros((3,2))
 
-fs = 60
+fs =100
 T = 1/fs
 fc = 2
 k = 2/T
@@ -97,69 +97,21 @@ def imu_callback(states:Imu):
 
         new_time = time.time()
 
-        # Butterworth filter
-        # Filter characteristics
-        # fs = new_time - old_time
-        # T = 1/fs
-        # fc = 2
-        # k = 2/T
-        # # prewarping
-        # w_d = 2*np.pi*fc/fs
-        # wa =k*np.tan(w_d/2)
-        # a = (k*k) - (wa*k*np.sqrt(2)) + (wa*wa)
-        # b = -2*k*k + (2*wa*wa)
-        # c = (k*k) + (wa*k*np.sqrt(2)) + (wa*wa)
-
-        # A = -b/c
-        # B = -a/c
-        # C = (wa*wa)/c
-        # D = (2*wa*wa)/c
-        # E = (wa*wa)/c
-
         curr_linear_acceleration.x = A*past_outputs[(0,1)] + B*past_outputs[(0,0)] + C*states.linear_acceleration.x + D*past_inputs[(0,1)] + E*past_inputs[(0,0)]
         curr_linear_acceleration.y = A*past_outputs[(1,1)] + B*past_outputs[(1,0)] + C*states.linear_acceleration.y + D*past_inputs[(1,1)] + E*past_inputs[(1,0)]
         curr_linear_acceleration.z = A*past_outputs[(2,1)] + B*past_outputs[(2,0)] + C*(states.linear_acceleration.z+9.81) + D*past_inputs[(2,1)] + E*past_inputs[(2,0)]
 
 
-        # Exponential moving average low pass filter (EMA)
-        # alpha = 0.5
-        # new_acceleration_np = np.array([states.linear_acceleration.x, states.linear_acceleration.y, states.linear_acceleration.z+9.81])
-        # curr_acceleration_np = np.array([curr_linear_acceleration.x, curr_linear_acceleration.y, curr_linear_acceleration.z])
-        # new_flitered_linear_acceleration = alpha * new_acceleration_np + (1-alpha) * curr_acceleration_np
-
-        # # Trapezoidal Integration
-        # curr_linear_velocity.vector.y += 0.5 * (curr_linear_acceleration.y + states.linear_acceleration.y) *(new_time - old_time)
-        # curr_linear_velocity.vector.x += 0.5 * (curr_linear_acceleration.x + states.linear_acceleration.x) *(new_time - old_time)
-        # curr_linear_velocity.vector.z += 0.5 * (curr_linear_acceleration.z + states.linear_acceleration.z + 9.81) *(new_time - old_time)
-
-        # Trapezoidal Integration EMA
-        # curr_linear_velocity.vector.y += 0.5 * (curr_linear_acceleration.y + new_flitered_linear_acceleration[1]) *(new_time - old_time)
-        # curr_linear_velocity.vector.x += 0.5 * (curr_linear_acceleration.x + new_flitered_linear_acceleration[0]) *(new_time - old_time)
-        # curr_linear_velocity.vector.z += 0.5 * (curr_linear_acceleration.z + new_flitered_linear_acceleration[2]) *(new_time - old_time)
-
         # Trapezoidal Integration Butterworth
-        curr_linear_velocity.vector.y += 0.5 * (curr_linear_acceleration.y + past_outputs[(1,1)]) * T
         curr_linear_velocity.vector.x += 0.5 * (curr_linear_acceleration.x + past_outputs[(0,1)]) * T
+        curr_linear_velocity.vector.y += 0.5 * (curr_linear_acceleration.y + past_outputs[(1,1)]) * T
         curr_linear_velocity.vector.z += 0.5 * (curr_linear_acceleration.z + past_outputs[(2,1)]) * T
 
 
-        # Euler Approximation
-        # curr_linear_velocity.vector.y += states.linear_acceleration.y * (new_time - old_time)
-        # curr_linear_velocity.vector.x += states.linear_acceleration.x * (new_time - old_time)
-        # curr_linear_velocity.vector.z += (states.linear_acceleration.z + 9.81) * (new_time - old_time)
-
-        # RK4
-        # rk4_integration(states.linear_acceleration, (new_time-old_time))
-
-        # Update Acceleration
-        # curr_linear_acceleration.y = states.linear_acceleration.y
-        # curr_linear_acceleration.x = states.linear_acceleration.x
-        # curr_linear_acceleration.z = states.linear_acceleration.z + 9.81
-
-        # Update Acceleration EMA
-        # curr_linear_acceleration.y = new_flitered_linear_acceleration[1]
-        # curr_linear_acceleration.x = new_flitered_linear_acceleration[0]
-        # curr_linear_acceleration.z = new_flitered_linear_acceleration[2]
+        # Euler Approximation Butterworth
+        # curr_linear_velocity.vector.y += curr_linear_acceleration.y * T
+        # curr_linear_velocity.vector.x += curr_linear_acceleration.x * T
+        # curr_linear_velocity.vector.z += curr_linear_acceleration.z * T
 
         # upadte Acceleration butterworth
         past_outputs[(0,0)] = past_outputs[(0,1)]
@@ -264,5 +216,7 @@ if __name__ == '__main__':
 
     publish_estimated_orientation = rospy.Publisher(estimated_orientation_topic[0], estimated_orientation_topic[1], queue_size=0)
     publish_filtered_imu_data = rospy.Publisher(filtered_imu_data_topic[0], filtered_imu_data_topic[1], queue_size=0)
-
+    # publisher_rate = rospy.Rate(100)
+    # while not rospy.is_shutdown():
+    #     publisher_rate.sleep()
     rospy.spin()
