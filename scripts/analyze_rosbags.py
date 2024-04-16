@@ -6,7 +6,7 @@ import scipy.fft
 
 if __name__ == '__main__':
     # read rosbag
-    bag = bagpy.bagreader('/home/ziad/ever_comp/src/autonomx_state_estimator/rosbags/butterworth_trapezoidal_2024-03-17-14-01-11.bag')
+    bag = bagpy.bagreader('/home/ziad/ever_comp/src/autonomx_state_estimator/rosbags/straight_line_trap_new_2024-03-20-06-39-31.bag')
     method = 'butterworth_trapezoidal'
 
     # extract topics of interest
@@ -170,7 +170,7 @@ if __name__ == '__main__':
     # fig3.savefig(f'/home/ziad/ever_comp/src/autonomx_state_estimator/Plots/filtering/fourier_{method}.png')
     # fig4.savefig(f'/home/ziad/ever_comp/src/autonomx_state_estimator/Plots/filtering/imu_linear_acceleration_filtered_{method}.png')
     # fig5.savefig(f'/home/ziad/ever_comp/src/autonomx_state_estimator/Plots/filtering/fourier_filtered_{method}.png')
-    plt.show()
+    # plt.show()
 
     # viewing the filtered IMU data
     # print(bag.topic_table)
@@ -186,4 +186,28 @@ if __name__ == '__main__':
 
     # plt.xlabel("Time Step")
     # plt.tight_layout()  # Adjust spacing between subplots (optional)
-    # plt.show()
+
+    '''
+        Integrating the ground truth velocity to check the readings using the trapezoidal integration rule
+    '''
+    # fs = 30
+    # T = 1/fs
+    # ground_truth_positions = np.zeros((3,len(ground_truth[0])))
+    # for i in range(3):
+    #     for j in range(1,len(ground_truth[i])):
+    #         ground_truth_positions[i][j] = ground_truth_positions[i][j-1] + (0.5*T)*(ground_truth[i][j-1] + ground_truth[i][j])
+
+    # ground_truth_pose = [ground_truth_topic_data['pose.pose.position.x'], ground_truth_topic_data['pose.pose.position.y'], ground_truth_topic_data['pose.pose.position.z']]
+
+    # plt.plot(ground_truth_pose[0],ground_truth_pose[1], label='ground truth', color = 'red')
+    # plt.plot(ground_truth_positions[0],ground_truth_positions[1], label='integrated', color = 'black')
+    # plt.xlabel("X")
+    # plt.ylabel('Y')
+    # plt.legend()
+    # plt.grid()
+    # plt.tight_layout()  # Adjust spacing between subplots (optional)
+    plt.show()
+
+    # # print(len(ground_truth_positions[2]))
+    # # print(ground_truth_pose[0])
+    # print(bag.topic_table)
