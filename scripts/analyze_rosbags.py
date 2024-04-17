@@ -6,7 +6,7 @@ import scipy.fft
 
 if __name__ == '__main__':
     # read rosbag
-    bag = bagpy.bagreader('/home/ziad/ever_comp/src/autonomx_state_estimator/rosbags/straight_line_trap_new_2024-03-20-06-39-31.bag')
+    bag = bagpy.bagreader('/home/ziad/ever_comp/src/autonomx_state_estimator/rosbags/stationary_gui_2024-04-16-20-12-35.bag')
     method = 'butterworth_trapezoidal'
 
     # extract topics of interest
@@ -164,50 +164,12 @@ if __name__ == '__main__':
     # plt.tight_layout()  # Adjust spacing between subplots (optional)
 
     
-    # save plots
+    ''' 
+        save plots
+    '''
     # fig1.savefig(f'/home/ziad/ever_comp/src/autonomx_state_estimator/Plots/filtering/velocity_estimates_{method}.png')
     # fig2.savefig(f'/home/ziad/ever_comp/src/autonomx_state_estimator/Plots/filtering/imu_linear_acceleration_raw_data_{method}.png')
     # fig3.savefig(f'/home/ziad/ever_comp/src/autonomx_state_estimator/Plots/filtering/fourier_{method}.png')
     # fig4.savefig(f'/home/ziad/ever_comp/src/autonomx_state_estimator/Plots/filtering/imu_linear_acceleration_filtered_{method}.png')
     # fig5.savefig(f'/home/ziad/ever_comp/src/autonomx_state_estimator/Plots/filtering/fourier_filtered_{method}.png')
     # plt.show()
-
-    # viewing the filtered IMU data
-    # print(bag.topic_table)
-
-    # fig6, axes6 = plt.subplots(3, 1, figsize=(15, 10))
-    # for i, ax in enumerate(axes6):
-    #     ax.plot(range(len(imu_accelrations_filtered[i])), imu_accelrations_filtered[i], label='Imu Filtered Data', color='black')
-    #     axis = 'X' if i==0 else ('Y' if i==1 else 'Z')
-    #     ax.set_ylabel(f'{axis} linear acceleration')
-    #     ax.legend()
-    #     ax.grid()
-    
-
-    # plt.xlabel("Time Step")
-    # plt.tight_layout()  # Adjust spacing between subplots (optional)
-
-    '''
-        Integrating the ground truth velocity to check the readings using the trapezoidal integration rule
-    '''
-    # fs = 30
-    # T = 1/fs
-    # ground_truth_positions = np.zeros((3,len(ground_truth[0])))
-    # for i in range(3):
-    #     for j in range(1,len(ground_truth[i])):
-    #         ground_truth_positions[i][j] = ground_truth_positions[i][j-1] + (0.5*T)*(ground_truth[i][j-1] + ground_truth[i][j])
-
-    # ground_truth_pose = [ground_truth_topic_data['pose.pose.position.x'], ground_truth_topic_data['pose.pose.position.y'], ground_truth_topic_data['pose.pose.position.z']]
-
-    # plt.plot(ground_truth_pose[0],ground_truth_pose[1], label='ground truth', color = 'red')
-    # plt.plot(ground_truth_positions[0],ground_truth_positions[1], label='integrated', color = 'black')
-    # plt.xlabel("X")
-    # plt.ylabel('Y')
-    # plt.legend()
-    # plt.grid()
-    # plt.tight_layout()  # Adjust spacing between subplots (optional)
-    plt.show()
-
-    # # print(len(ground_truth_positions[2]))
-    # # print(ground_truth_pose[0])
-    # print(bag.topic_table)
