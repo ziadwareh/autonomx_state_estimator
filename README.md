@@ -18,7 +18,7 @@
 # Encoder #
 
 
-day 11/3: 
+day 11/4: 
 	-> added rosgraph_msg to package.xml
 	-> subscribed to /clock. "time clock" clock variable of type time (seconds & nseconds)
 	
@@ -26,15 +26,19 @@ day 11/3:
 	simulationTime = sim.getSimulationTime()
     	simROS.publish(pub_clock,{clock=simulationTime})
 
-day 12/3:
+day 12/4:
 	v1:
 	-> added an odom_subscriber, initialized values of position x, y, z"
 	
-day 14/3:
+day 14/4:
 	v1:
 	-> added an odom_time_subscriber, uses the time stamp in /odom for time instead of /clock
 	-> change the time stamp in /odom in coppeliaSim/position_sensor to (sim.getSimulationTime())
 	-> Disable real time simulation in coppeliaSim
+	
+day 19/4:
+	v1:
+	-> added graph.ipynb to plot ground truth vs encoder values
     	
     	
 > 
