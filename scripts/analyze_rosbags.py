@@ -3,17 +3,19 @@ import bagpy
 import pandas as pd
 import numpy as np
 import scipy.fft
+from tf.transformations import euler_from_quaternion
 
 if __name__ == '__main__':
     # read rosbag
-    bag = bagpy.bagreader('/home/ziad/ever_comp/src/autonomx_state_estimator/rosbags/stationary_gui_2024-04-16-20-12-35.bag')
+    bag = bagpy.bagreader('/home/ziad/ever_comp/src/autonomx_state_estimator/rosbags/kf_infinity_11_2024-04-20-00-12-02.bag')
     method = 'butterworth_trapezoidal'
 
     # extract topics of interest
     ground_truth_topic_data = pd.read_csv(bag.message_by_topic('/odom'))
-    estimations_topic_data = pd.read_csv(bag.message_by_topic('/current_linear_velocity'))
-    imu_topic_data = pd.read_csv(bag.message_by_topic('/Imu'))
-    filtered_imu_topic_data = pd.read_csv(bag.message_by_topic('/Imu_filtered'))
+    velocity_estimations_topic_data = pd.read_csv(bag.message_by_topic('/current_linear_velocity'))
+    heading_estimations_topic_data = pd.read_csv(bag.message_by_topic('/current_heading'))
+    # imu_topic_data = pd.read_csv(bag.message_by_topic('/Imu'))
+    # filtered_imu_topic_data = pd.read_csv(bag.message_by_topic('/Imu_filtered'))
 
     '''
         Plotting Ground Truth Velocity Compared to Estimated Velocities
@@ -21,7 +23,7 @@ if __name__ == '__main__':
 
     # extract the data i need as pd.sereis and store them in a list
     ground_truth = [ground_truth_topic_data['twist.twist.linear.x'], ground_truth_topic_data['twist.twist.linear.y'], ground_truth_topic_data['twist.twist.linear.z']]
-    estimates = [estimations_topic_data['x'], estimations_topic_data['y'], estimations_topic_data['z']]
+    estimates = [velocity_estimations_topic_data['x'], velocity_estimations_topic_data['y'], velocity_estimations_topic_data['z']]
 
     fig1, axes1 = plt.subplots(3, 1, figsize=(15, 10))  # Create 3 rows, 1 column subplot
     for i, ax in enumerate(axes1):
@@ -36,26 +38,51 @@ if __name__ == '__main__':
     plt.tight_layout()  # Adjust spacing between subplots (optional)
 
     '''
+    Plotting the ground truth heading compared to the estimated heading
+    '''
+
+    ground_truth_orientation = [ground_truth_topic_data['pose.pose.orientation.x'], ground_truth_topic_data['pose.pose.orientation.y'],ground_truth_topic_data['pose.pose.orientation.z'], ground_truth_topic_data['pose.pose.orientation.w']]
+    estimated_heading = heading_estimations_topic_data['data']
+
+    ground_truth_heading = np.zeros_like(ground_truth_orientation[1].values)
+
+    # Converting the orientation from quaternion to euler and extracting the yaw
+
+    for i in range(len(ground_truth_heading)):
+        ground_truth_heading[i] = euler_from_quaternion((ground_truth_orientation[0][i], ground_truth_orientation[1][i], ground_truth_orientation[2][i], ground_truth_orientation[3][i]))[2]
+
+    fig2, axes2 = plt.subplots(1, 1, figsize=(15, 10))
+    axes2.plot(range(len(ground_truth_heading)), ground_truth_heading, label='Ground Truth', color='red', linestyle='--')
+    axes2.plot(range(len(estimated_heading)), estimated_heading, label='Estimate', color='black')
+    axes2.set_ylabel('Heading')
+    axes2.legend()
+    axes2.grid()
+
+    plt.xlabel("Time Step")
+    plt.tight_layout()  # Adjust spacing between subplots (optional)
+    # plt.show()
+
+    '''
         Plotting the IMU data
     '''
 
     # Extract the data i need
-    imu_accelrations = [imu_topic_data['linear_acceleration.x'], imu_topic_data['linear_acceleration.y'], imu_topic_data['linear_acceleration.z']]
-    imu_accelrations_filtered = [filtered_imu_topic_data['x'], filtered_imu_topic_data['y'], filtered_imu_topic_data['z']- np.ones_like(filtered_imu_topic_data['z'])*9.81]
+    # imu_accelrations = [imu_topic_data['linear_acceleration.x'], imu_topic_data['linear_acceleration.y'], imu_topic_data['linear_acceleration.z']]
+    # imu_accelrations_filtered = [filtered_imu_topic_data['x'], filtered_imu_topic_data['y'], filtered_imu_topic_data['z']- np.ones_like(filtered_imu_topic_data['z'])*9.81]
 
-    fig2, axes2 = plt.subplots(3, 1, figsize=(15, 10))
-    for i, ax in enumerate(axes2):
-        ax.plot(range(len(imu_accelrations[i])), imu_accelrations[i], label='Imu Raw Data', color='red')
-        ax.plot(range(len(imu_accelrations_filtered[i])), imu_accelrations_filtered[i], label='Imu Filtered Data', color='black')
+    # fig2, axes2 = plt.subplots(3, 1, figsize=(15, 10))
+    # for i, ax in enumerate(axes2):
+    #     ax.plot(range(len(imu_accelrations[i])), imu_accelrations[i], label='Imu Raw Data', color='red')
+    #     ax.plot(range(len(imu_accelrations_filtered[i])), imu_accelrations_filtered[i], label='Imu Filtered Data', color='black')
 
-        axis = 'X' if i==0 else ('Y' if i==1 else 'Z')
-        ax.set_ylabel(f'{axis} linear acceleration')
-        ax.legend()
-        ax.grid()
+    #     axis = 'X' if i==0 else ('Y' if i==1 else 'Z')
+    #     ax.set_ylabel(f'{axis} linear acceleration')
+    #     ax.legend()
+    #     ax.grid()
     
 
-    plt.xlabel("Time Step")
-    plt.tight_layout()  # Adjust spacing between subplots (optional)
+    # plt.xlabel("Time Step")
+    # plt.tight_layout()  # Adjust spacing between subplots (optional)
 
     '''
         Performing Fourier Analysis to decompose the signal to determine the Noise frequency
@@ -172,4 +199,4 @@ if __name__ == '__main__':
     # fig3.savefig(f'/home/ziad/ever_comp/src/autonomx_state_estimator/Plots/filtering/fourier_{method}.png')
     # fig4.savefig(f'/home/ziad/ever_comp/src/autonomx_state_estimator/Plots/filtering/imu_linear_acceleration_filtered_{method}.png')
     # fig5.savefig(f'/home/ziad/ever_comp/src/autonomx_state_estimator/Plots/filtering/fourier_filtered_{method}.png')
-    # plt.show()
+    plt.show()

@@ -44,7 +44,7 @@ L = 2.269 # m
       Kalman Parameters initialization:
 '''
 
-# [vx, vy, vz, ax, ay, az, yaw, stering angle]T
+# [vx, vy, vz, ax, ay, az, yaw, steering angle]T
 X_matrix = np.zeros((8,1))
 
 X_hat_matrix = np.zeros((8,1))
@@ -70,46 +70,50 @@ B_matrix = np.array([[np.cos(X_matrix[-2,0]), 0],
 U_matrix = np.zeros((2,1))
 
 C_matrix = np.array([[0, 0, 0, 1, 0, 0, 0, 0],
-                      [0, 0, 0, 0, 1, 0, 0, 0],
-                      [0, 0, 0, 0, 0, 1, 0, 0],
-                      [0, 0, 0, 0, 0, 0, 1, 0]])
+                     [0, 0, 0, 0, 1, 0, 0, 0],
+                     [0, 0, 0, 0, 0, 1, 0, 0],
+                     [0, 0, 0, 0, 0, 0, 1, 0]])
 
 # I assumed an error of 100 m/s for velocity, 100 m/s^2 for acceleration, and 1 rad for yaw and steering angle
 
-P_matrix = np.arrray([[100, 0, 0, 0, 0, 0, 0, 0],
-                      [0, 100, 0, 0, 0, 0, 0, 0],
-                      [0, 0, 100, 0, 0, 0, 0, 0],
-                      [0, 0, 0, 100, 0, 0, 0, 0],
-                      [0, 0, 0, 0, 100, 0, 0, 0],
-                      [0, 0, 0, 0, 0, 100, 0, 0],
-                      [0, 0, 0, 0, 0, 0, 1, 0],
-                      [0, 0, 0, 0, 0, 0, 0, 1]])
+P_matrix = np.array([[100, 0, 0, 0, 0, 0, 0, 0],
+                     [0, 100, 0, 0, 0, 0, 0, 0],
+                     [0, 0, 100, 0, 0, 0, 0, 0],
+                     [0, 0, 0, 100, 0, 0, 0, 0],
+                     [0, 0, 0, 0, 100, 0, 0, 0],
+                     [0, 0, 0, 0, 0, 100, 0, 0],
+                     [0, 0, 0, 0, 0, 0, 2, 0],
+                     [0, 0, 0, 0, 0, 0, 0, 3]])
 
 P_hat_matrix = np.zeros((8,8))
 
 # I assumed a process noise of 0.01 for every state
 
-Q_matrix = np.arrray([[0.01, 0, 0, 0, 0, 0, 0, 0],
-                      [0, 0.01, 0, 0, 0, 0, 0, 0],
-                      [0, 0, 0.01, 0, 0, 0, 0, 0],
-                      [0, 0, 0, 0.01, 0, 0, 0, 0],
-                      [0, 0, 0, 0, 0.01, 0, 0, 0],
-                      [0, 0, 0, 0, 0, 0.01, 0, 0],
-                      [0, 0, 0, 0, 0, 0, 0.01, 0],
-                      [0, 0, 0, 0, 0, 0, 0, 0.01]])
+Q_matrix = np.array([[0.01, 0, 0, 0, 0, 0, 0, 0],
+                     [0, 0.01, 0, 0, 0, 0, 0, 0],
+                     [0, 0, 0.01, 0, 0, 0, 0, 0],
+                     [0, 0, 0, 0.01, 0, 0, 0, 0],
+                     [0, 0, 0, 0, 0.01, 0, 0, 0],
+                     [0, 0, 0, 0, 0, 0.01, 0, 0],
+                     [0, 0, 0, 0, 0, 0, 0.001, 0],
+                     [0, 0, 0, 0, 0, 0, 0, 0.001]]) * 100000
 
-R_matrix = np.arrray([[2.427458e-05, -1.669918e-05, 6.829418e-07, 6.240109e-08],
-                      [-1.669918e-05, 4.997876e-04, 2.045260e-05, -1.338288e-08],
-                      [6.829418e-07, 2.045260e-05, 4.234005e-05, 1.572766e-09],
-                      [6.240109e-08, -1.338288e-08, 1.572766e-09, 2.385820e-10]])
+R_matrix = np.array([[2.427458e-05, -1.669918e-05, 6.829418e-07, 6.240109e-08],
+                     [-1.669918e-05, 4.997876e-04, 2.045260e-05, -1.338288e-08],
+                     [6.829418e-07, 2.045260e-05, 4.234005e-05, 1.572766e-09],
+                     [6.240109e-08, -1.338288e-08, 1.572766e-09, 2.385820e-10]])
 
 Z_matrix = np.zeros((4,1))
 
-K_matrix = np.zeros_like(C_matrix)
+K_matrix = np.zeros_like(np.transpose(C_matrix))
 
 I_matrix = np.identity(8)
 
 imu_alignment_matrix = np.zeros((3,3))
+
+# Syncronization flags
+obtained_vd_flag = False
+obtained_steering_flag = False
 
 # Validation parameter
 body_to_global_rotation_matrix = np.zeros((3,3))
@@ -121,7 +125,7 @@ def initial_states_callback(initial_states:Odometry):
 
     obtained_initial_orientation_flag = True
     
-    imu_alignment_matrix = quaternion_matrix((initial_states.pose.pose.orientation.x, initial_states.pose.pose.orientation.y, initial_states.pose.pose.orientation.z, initial_states.pose.pose.orientation.w))
+    imu_alignment_matrix = quaternion_matrix((initial_states.pose.pose.orientation.x, initial_states.pose.pose.orientation.y, initial_states.pose.pose.orientation.z, initial_states.pose.pose.orientation.w))[:3,:3]
 
     X_matrix[-2,0] = euler_from_quaternion((initial_states.pose.pose.orientation.x, initial_states.pose.pose.orientation.y, initial_states.pose.pose.orientation.z, initial_states.pose.pose.orientation.w))[2]
 
@@ -130,6 +134,8 @@ def initial_states_callback(initial_states:Odometry):
 def imu_callback(imu_readings:Imu):
     global Z_matrix
     global body_to_global_rotation_matrix
+    global obtained_steering_flag
+    global obtained_vd_flag
 
     if obtained_initial_orientation_flag:
 
@@ -143,36 +149,49 @@ def imu_callback(imu_readings:Imu):
         '''
             Right now i am ignoring the imu alignment since it is almost perfectly alligned
         '''
-        # Perform the alignment step using a = R*a_raw
+        # Perform the alignment step using a = R*a_raw and orientation = R*orientation_raw
 
+        imu_accelerations = np.array([imu_readings.linear_acceleration.x, imu_readings.linear_acceleration.y, imu_readings.linear_acceleration.z])
+        aligned_imu_accelerations = np.matmul(imu_alignment_matrix, imu_accelerations)
+
+        imu_orientation = euler_from_quaternion((imu_readings.orientation.x, imu_readings.orientation.y, imu_readings.orientation.z, imu_readings.orientation.w))
+        aligned_imu_orientation = np.matmul(imu_alignment_matrix, imu_orientation)
 
         # Calculating the yaw from the imu quaternion readings
 
-        imu_yaw = euler_from_quaternion((imu_readings.orientation.x, imu_readings.orientation.y, imu_readings.orientation.z, imu_readings.orientation.w))[2]
-
+        # imu_yaw = euler_from_quaternion((imu_readings.orientation.x, imu_readings.orientation.y, imu_readings.orientation.z, imu_readings.orientation.w))[2]
+        
         # Obtain the raw readings
-        Z_matrix = np.array([[imu_readings.linear_acceleration.x],
-                             [imu_readings.linear_acceleration.y],
-                             [imu_readings.linear_acceleration.z],
-                             [imu_yaw]])
-
-        kalman_filter()
+        # Z_matrix = np.array([[imu_readings.linear_acceleration.x],
+        #                      [imu_readings.linear_acceleration.y],
+        #                      [imu_readings.linear_acceleration.z + g],
+        #                      [imu_yaw]])
+        Z_matrix = np.array([[aligned_imu_accelerations[0]],
+                             [aligned_imu_accelerations[1]],
+                             [aligned_imu_accelerations[2] + g],
+                             [aligned_imu_orientation[2]]])
 
         body_to_global_rotation_matrix = quaternion_matrix([imu_readings.orientation.x, imu_readings.orientation.y, imu_readings.orientation.z, imu_readings.orientation.w])[:3,:3]
-    
+
+        if obtained_vd_flag and obtained_steering_flag:
+            obtained_steering_flag = False
+            obtained_vd_flag = False
+            kalman_filter()    
 
 def input_velocity_callback(input_throttle:Float64):
     global U_matrix
+    global obtained_vd_flag
 
     U_matrix[0,0] = input_throttle.data * max_velocity
-    kalman_filter()
+    obtained_vd_flag = True
 
 
 def input_steering_angle_callback(input_steering_angle:Float64):
     global U_matrix
+    global obtained_steering_flag
 
     U_matrix[1,0] = np.deg2rad(input_steering_angle.data)
-    kalman_filter()
+    obtained_steering_flag = True
 
 def kalman_filter():
     global X_matrix
@@ -180,6 +199,7 @@ def kalman_filter():
     global P_matrix
     global P_hat_matrix
     global K_matrix
+    global B_matrix
 
     # Predict state ahead
     X_hat_matrix = np.matmul(A_matrix, X_matrix) + np.matmul(B_matrix, U_matrix)
@@ -198,6 +218,12 @@ def kalman_filter():
 
     # Update Error Covariance
     P_matrix = np.matmul((I_matrix - np.matmul(K_matrix, C_matrix)), P_hat_matrix)
+
+    # Update the B_matrix for the next snapshot
+
+    B_matrix[0,0] = np.cos(X_matrix[-2,0])
+    B_matrix[1,0] = np.sin(X_matrix[-2,0])
+    B_matrix[6,0] = np.tan(X_matrix[-1,0])/L
 
     '''
         Before publishing, i gotta convert it from body frame to global frame to compare against ground truth
@@ -218,8 +244,6 @@ if __name__ == '__main__':
 
     rospy.init_node("state_estimator_node")
     rospy.loginfo("state estimator node initialized")
-
-    # frequency = rospy.get_param("~frequency", 'default_value')
 
     ####################### Topics declarations #######################
 
@@ -246,6 +270,5 @@ if __name__ == '__main__':
 
     publish_current_heading = rospy.Publisher(heading_topic[0], heading_topic[1], queue_size=0)
     publish_current_linear_velocity = rospy.Publisher(linear_velocity_topic[0], linear_velocity_topic[1], queue_size=0)
-
 
     rospy.spin()
