@@ -1,9 +1,12 @@
 <launch>
     <arg name="sampling_rate" default="100" />
-    <arg name="node" default="butterworth" />
+    <arg name="node" default="kf2" />
+    <arg name="path" default="circular" />
+    <!-- Type of path: 'straight', 'circular', 'lane_change', 'infinity' -->
     
     <include file="$(find vehicle_control_pkg)/launch/system.launch"> 
         <arg name="controller_type" default="open_loop" />
+        <arg name="path" default="$(arg path)" />
     </include>
 
     <node name = "state_estimator" pkg="autonomx_state_estimator" type="state_estimator_$(arg node).py" output="screen" respawn="true" >
