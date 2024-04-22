@@ -79,11 +79,11 @@ C_matrix = np.array([[0, 0, 0, 1, 0, 0, 0, 0],
 P_matrix = np.array([[100, 0, 0, 0, 0, 0, 0, 0],
                      [0, 100, 0, 0, 0, 0, 0, 0],
                      [0, 0, 100, 0, 0, 0, 0, 0],
-                     [0, 0, 0, 1000, 0, 0, 0, 0],
+                     [0, 0, 0, 100, 0, 0, 0, 0],
                      [0, 0, 0, 0, 1000, 0, 0, 0],
-                     [0, 0, 0, 0, 0, 1000, 0, 0],
+                     [0, 0, 0, 0, 0, 100, 0, 0],
                      [0, 0, 0, 0, 0, 0, 3, 0],
-                     [0, 0, 0, 0, 0, 0, 0, 3]]) *10#* 1e-1
+                     [0, 0, 0, 0, 0, 0, 0, 3]]) #*10#* 1e-1
 
 P_hat_matrix = np.zeros((8,8))
 
@@ -96,17 +96,17 @@ Q_matrix = np.array([[0.01, 0, 0, 0, 0, 0, 0, 0],
                      [0, 0, 0, 0, 0.01, 0, 0, 0],
                      [0, 0, 0, 0, 0, 0.01, 0, 0],
                      [0, 0, 0, 0, 0, 0, 0.01, 0],
-                     [0, 0, 0, 0, 0, 0, 0, 0.01]]) * 100
+                     [0, 0, 0, 0, 0, 0, 0, 0.01]]) #* 100
 
-# R_matrix = np.array([[2.427458e-05, -1.669918e-05, 6.829418e-07, 6.240109e-08],
-#                      [-1.669918e-05, 4.997876e-04, 2.045260e-05, -1.338288e-08],
-#                      [6.829418e-07, 2.045260e-05, 4.234005e-05, 1.572766e-09],
-#                      [6.240109e-08, -1.338288e-08, 1.572766e-09, 2.385820e-10]]) * 100
+R_matrix = np.array([[2.427458e-05, -1.669918e-05, 6.829418e-07, 6.240109e-08],
+                     [-1.669918e-05, 4.997876e-04, 2.045260e-05, -1.338288e-08],
+                     [6.829418e-07, 2.045260e-05, 4.234005e-05, 1.572766e-09],
+                     [6.240109e-08, -1.338288e-08, 1.572766e-09, 2.385820e-10]]) #* 100
 
-R_matrix = np.array([[1.973896e-06, -0.000123, -4.419050e-07, 3.544070e-08],
-                     [-1.229435e-04, 0.116677, -8.875778e-04, -7.484704e-06],
-                     [-4.419050e-07, -0.000888, 2.079649e-04, 1.601737e-08],
-                     [3.544070e-08, -0.000007, 1.601737e-08, 2.471195e-09]])
+# R_matrix = np.array([[1.973896e-06, -0.000123, -4.419050e-07, 3.544070e-08],
+#                      [-1.229435e-04, 0.116677, -8.875778e-04, -7.484704e-06],
+#                      [-4.419050e-07, -0.000888, 2.079649e-04, 1.601737e-08],
+#                      [3.544070e-08, -0.000007, 1.601737e-08, 2.471195e-09]])
 
 Z_matrix = np.zeros((4,1))
 
@@ -123,18 +123,28 @@ obtained_steering_flag = False
 # Validation parameter
 body_to_global_rotation_matrix = np.zeros((3,3))
 
+# syncronization parameter
+ground_truth = Odometry()
+first_entry = True
+
 def initial_states_callback(initial_states:Odometry):
     global obtained_initial_orientation_flag
     global imu_alignment_matrix
     global X_matrix
+    #
+    global first_entry
+    global ground_truth
 
-    obtained_initial_orientation_flag = True
-    
-    imu_alignment_matrix = quaternion_matrix((initial_states.pose.pose.orientation.x, initial_states.pose.pose.orientation.y, initial_states.pose.pose.orientation.z, initial_states.pose.pose.orientation.w))[:3,:3]
+    if first_entry:
+        first_entry = False
+        obtained_initial_orientation_flag = True
 
-    X_matrix[-2,0] = euler_from_quaternion((initial_states.pose.pose.orientation.x, initial_states.pose.pose.orientation.y, initial_states.pose.pose.orientation.z, initial_states.pose.pose.orientation.w))[2]
+        imu_alignment_matrix = quaternion_matrix((initial_states.pose.pose.orientation.x, initial_states.pose.pose.orientation.y, initial_states.pose.pose.orientation.z, initial_states.pose.pose.orientation.w))[:3,:3]
 
-    initial_states_subsrciber.unregister()
+        X_matrix[-2,0] = euler_from_quaternion((initial_states.pose.pose.orientation.x, initial_states.pose.pose.orientation.y, initial_states.pose.pose.orientation.z, initial_states.pose.pose.orientation.w))[2]
+
+    #initial_states_subsrciber.unregister()
+    ground_truth = initial_states
 
 def imu_callback(imu_readings:Imu):
     global Z_matrix
@@ -245,6 +255,9 @@ def kalman_filter():
     rotated_heading = np.matmul(body_to_global_rotation_matrix, heading)
     publish_current_heading.publish(Float64(rotated_heading[2]))
 
+    # 
+    publish_ground_truth.publish(ground_truth)
+
 
 
 if __name__ == '__main__':
@@ -265,7 +278,9 @@ if __name__ == '__main__':
     linear_velocity_topic = ("/current_linear_velocity", Vector3)
     heading_topic = ("/current_heading", Float64)
 
-    
+    ####################### Syncronization topic #######################
+
+    ground_truth_topic = ("/ground_truth", Odometry)
 
     ####################### Node subscriptions #######################
 
@@ -279,5 +294,8 @@ if __name__ == '__main__':
 
     publish_current_heading = rospy.Publisher(heading_topic[0], heading_topic[1], queue_size=0)
     publish_current_linear_velocity = rospy.Publisher(linear_velocity_topic[0], linear_velocity_topic[1], queue_size=0)
+
+    ####################### Node syncronization #######################
+    publish_ground_truth = rospy.Publisher(ground_truth_topic[0],ground_truth_topic[1],queue_size=0)
 
     rospy.spin()
