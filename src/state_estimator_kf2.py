@@ -5,7 +5,7 @@ from std_msgs.msg import Float64
 from geometry_msgs.msg import Vector3
 from nav_msgs.msg import Odometry
 import numpy as np
-from tf.transformations import euler_from_quaternion, quaternion_matrix
+from tf.transformations import euler_from_quaternion, quaternion_matrix, euler_matrix
 
 ####################### Global variables declarations #######################
 
@@ -49,22 +49,22 @@ X_matrix = np.zeros((8,1))
 
 X_hat_matrix = np.zeros((8,1))
 
-A_matrix = np.array([[1, 0, 0, T, 0, 0, 0, 0],
-                     [0, 1, 0, 0, T, 0, 0, 0],
-                     [0, 0, 1, 0, 0, T, 0, 0],
+A_matrix = np.array([[0, 0, 0, T, 0, 0, 0, 0],
+                     [0, 0, 0, 0, T, 0, 0, 0],
+                     [0, 0, 0, 0, 0, T, 0, 0],
                      [0, 0, 0, 1, 0, 0, 0, 0],
                      [0, 0, 0, 0, 1, 0, 0, 0],
                      [0, 0, 0, 0, 0, 1, 0, 0],
                      [0, 0, 0, 0, 0, 0, 1, 0],
-                     [0, 0, 0, 0, 0, 0, 0, 1]])
+                     [0, 0, 0, 0, 0, 0, 0, 0]])
 
-B_matrix = np.array([[np.cos(X_matrix[-2,0]), 0],
-                     [np.sin(X_matrix[-2,0]), 0],
+B_matrix = np.array([[-np.sin(X_matrix[-2,0]), 0],
+                     [np.cos(X_matrix[-2,0]), 0],
                      [0, 0],
                      [0, 0],
                      [0, 0],
                      [0, 0],
-                     [np.tan(X_matrix[-1,0])/L, 0],
+                     [T*np.tan(X_matrix[-1,0])/L, 0],
                      [0, 1]])
 
 U_matrix = np.zeros((2,1))
@@ -79,11 +79,11 @@ C_matrix = np.array([[0, 0, 0, 1, 0, 0, 0, 0],
 P_matrix = np.array([[100, 0, 0, 0, 0, 0, 0, 0],
                      [0, 100, 0, 0, 0, 0, 0, 0],
                      [0, 0, 100, 0, 0, 0, 0, 0],
-                     [0, 0, 0, 100, 0, 0, 0, 0],
-                     [0, 0, 0, 0, 100, 0, 0, 0],
-                     [0, 0, 0, 0, 0, 100, 0, 0],
-                     [0, 0, 0, 0, 0, 0, 2, 0],
-                     [0, 0, 0, 0, 0, 0, 0, 3]])
+                     [0, 0, 0, 1000, 0, 0, 0, 0],
+                     [0, 0, 0, 0, 1000, 0, 0, 0],
+                     [0, 0, 0, 0, 0, 1000, 0, 0],
+                     [0, 0, 0, 0, 0, 0, 3, 0],
+                     [0, 0, 0, 0, 0, 0, 0, 3]]) *10#* 1e-1
 
 P_hat_matrix = np.zeros((8,8))
 
@@ -95,13 +95,18 @@ Q_matrix = np.array([[0.01, 0, 0, 0, 0, 0, 0, 0],
                      [0, 0, 0, 0.01, 0, 0, 0, 0],
                      [0, 0, 0, 0, 0.01, 0, 0, 0],
                      [0, 0, 0, 0, 0, 0.01, 0, 0],
-                     [0, 0, 0, 0, 0, 0, 0.001, 0],
-                     [0, 0, 0, 0, 0, 0, 0, 0.001]]) * 100000
+                     [0, 0, 0, 0, 0, 0, 0.01, 0],
+                     [0, 0, 0, 0, 0, 0, 0, 0.01]]) * 100
 
-R_matrix = np.array([[2.427458e-05, -1.669918e-05, 6.829418e-07, 6.240109e-08],
-                     [-1.669918e-05, 4.997876e-04, 2.045260e-05, -1.338288e-08],
-                     [6.829418e-07, 2.045260e-05, 4.234005e-05, 1.572766e-09],
-                     [6.240109e-08, -1.338288e-08, 1.572766e-09, 2.385820e-10]])
+# R_matrix = np.array([[2.427458e-05, -1.669918e-05, 6.829418e-07, 6.240109e-08],
+#                      [-1.669918e-05, 4.997876e-04, 2.045260e-05, -1.338288e-08],
+#                      [6.829418e-07, 2.045260e-05, 4.234005e-05, 1.572766e-09],
+#                      [6.240109e-08, -1.338288e-08, 1.572766e-09, 2.385820e-10]]) * 100
+
+R_matrix = np.array([[1.973896e-06, -0.000123, -4.419050e-07, 3.544070e-08],
+                     [-1.229435e-04, 0.116677, -8.875778e-04, -7.484704e-06],
+                     [-4.419050e-07, -0.000888, 2.079649e-04, 1.601737e-08],
+                     [3.544070e-08, -0.000007, 1.601737e-08, 2.471195e-09]])
 
 Z_matrix = np.zeros((4,1))
 
@@ -151,25 +156,29 @@ def imu_callback(imu_readings:Imu):
         '''
         # Perform the alignment step using a = R*a_raw and orientation = R*orientation_raw
 
-        imu_accelerations = np.array([imu_readings.linear_acceleration.x, imu_readings.linear_acceleration.y, imu_readings.linear_acceleration.z])
-        aligned_imu_accelerations = np.matmul(imu_alignment_matrix, imu_accelerations)
+        # imu_accelerations = np.array([imu_readings.linear_acceleration.x, imu_readings.linear_acceleration.y, imu_readings.linear_acceleration.z])
+        # aligned_imu_accelerations = np.matmul(imu_alignment_matrix, imu_accelerations)
 
-        imu_orientation = euler_from_quaternion((imu_readings.orientation.x, imu_readings.orientation.y, imu_readings.orientation.z, imu_readings.orientation.w))
-        aligned_imu_orientation = np.matmul(imu_alignment_matrix, imu_orientation)
+        # imu_orientation = euler_from_quaternion((imu_readings.orientation.x, imu_readings.orientation.y, imu_readings.orientation.z, imu_readings.orientation.w))
+        # aligned_imu_orientation = np.matmul(imu_alignment_matrix, imu_orientation)
 
-        # Calculating the yaw from the imu quaternion readings
+        # Z_matrix = np.array([[aligned_imu_accelerations[0]],
+        #                      [aligned_imu_accelerations[1]],
+        #                      [aligned_imu_accelerations[2] + g],
+        #                      [aligned_imu_orientation[2]]])
 
-        # imu_yaw = euler_from_quaternion((imu_readings.orientation.x, imu_readings.orientation.y, imu_readings.orientation.z, imu_readings.orientation.w))[2]
+        # body_to_global_rotation_matrix = euler_matrix(aligned_imu_orientation[0], aligned_imu_orientation[1], aligned_imu_orientation[2])[:3,:3]
+
+        # Comment the above section and uncomment the section below incase it is desired to remove imu alignment
+
+        imu_yaw = euler_from_quaternion((imu_readings.orientation.x, imu_readings.orientation.y, imu_readings.orientation.z, imu_readings.orientation.w))[2]
         
         # Obtain the raw readings
-        # Z_matrix = np.array([[imu_readings.linear_acceleration.x],
-        #                      [imu_readings.linear_acceleration.y],
-        #                      [imu_readings.linear_acceleration.z + g],
-        #                      [imu_yaw]])
-        Z_matrix = np.array([[aligned_imu_accelerations[0]],
-                             [aligned_imu_accelerations[1]],
-                             [aligned_imu_accelerations[2] + g],
-                             [aligned_imu_orientation[2]]])
+        Z_matrix = np.array([[imu_readings.linear_acceleration.x],
+                             [imu_readings.linear_acceleration.y],
+                             [imu_readings.linear_acceleration.z + g],
+                             [imu_yaw]])
+        
 
         body_to_global_rotation_matrix = quaternion_matrix([imu_readings.orientation.x, imu_readings.orientation.y, imu_readings.orientation.z, imu_readings.orientation.w])[:3,:3]
 
@@ -221,9 +230,9 @@ def kalman_filter():
 
     # Update the B_matrix for the next snapshot
 
-    B_matrix[0,0] = np.cos(X_matrix[-2,0])
-    B_matrix[1,0] = np.sin(X_matrix[-2,0])
-    B_matrix[6,0] = np.tan(X_matrix[-1,0])/L
+    B_matrix[0,0] = -np.sin(X_matrix[-2,0])
+    B_matrix[1,0] = np.cos(X_matrix[-2,0])
+    B_matrix[6,0] = T*np.tan(X_matrix[-1,0])/L
 
     '''
         Before publishing, i gotta convert it from body frame to global frame to compare against ground truth
