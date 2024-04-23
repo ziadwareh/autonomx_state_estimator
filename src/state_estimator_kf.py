@@ -133,7 +133,6 @@ def initial_states_callback(initial_states:Odometry):
     global obtained_initial_orientation_flag
     global imu_alignment_matrix
     global X_matrix
-    #
     global first_entry
     global ground_truth
 
@@ -261,10 +260,6 @@ def kalman_filter():
 
     publish_current_angular_velocity.publish(X_matrix[-2,0])
 
-    # acceleration = np.matmul(body_to_global_rotation_matrix, [X_matrix[3,0],X_matrix[4,0],X_matrix[5,0]])
-    # publish_current_linear_acceleration.publish(Vector3(acceleration[0],acceleration[1],acceleration[2]))
-
-    # 
     publish_ground_truth.publish(ground_truth)
 
 
@@ -287,7 +282,6 @@ if __name__ == '__main__':
     linear_velocity_topic = ("/current_linear_velocity", Vector3)
     heading_topic = ("/current_heading", Float64)
     angular_velocity_topic = ("/current_angular_velocity", Float64)
-    # linear_acceleration_topic = ("/current_linear_acceleration", Vector3)
 
     ####################### Syncronization topic #######################
 
@@ -306,7 +300,6 @@ if __name__ == '__main__':
     publish_current_heading = rospy.Publisher(heading_topic[0], heading_topic[1], queue_size=0)
     publish_current_linear_velocity = rospy.Publisher(linear_velocity_topic[0], linear_velocity_topic[1], queue_size=0)
     publish_current_angular_velocity = rospy.Publisher(angular_velocity_topic[0], angular_velocity_topic[1], queue_size=0)
-    # publish_current_linear_acceleration = rospy.Publisher(linear_acceleration_topic[0], linear_acceleration_topic[1], queue_size=0)
 
     ####################### Node syncronization #######################
     publish_ground_truth = rospy.Publisher(ground_truth_topic[0],ground_truth_topic[1],queue_size=0)
