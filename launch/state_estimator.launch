@@ -1,6 +1,6 @@
 <launch>
     <arg name="sampling_rate" default="100" />
-    <arg name="node" default="kf" />
+    <arg name="node" default="ms" />
     <arg name="path" default="straight" />
     <!-- Type of path: 'straight', 'circular', 'lane_change', 'infinity' -->
     
