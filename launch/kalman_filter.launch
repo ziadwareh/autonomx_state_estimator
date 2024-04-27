@@ -1,6 +1,0 @@
-<launch>
-    <node name = "state_estimator" pkg="autonomx_state_estimator" type="state_estimator_kf2.py" output="screen" respawn="true" >
-    </node>
-
-    
-</launch>
