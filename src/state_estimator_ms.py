@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import rospy
-from sensor_msgs.msg import Imu
 from std_msgs.msg import Float64
 from geometry_msgs.msg import Vector3
 from nav_msgs.msg import Odometry
