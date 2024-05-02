@@ -9,6 +9,7 @@ from tf.transformations import euler_from_quaternion, quaternion_from_euler
 ####################### Global variables declarations #######################
 
 max_velocity = 33.33 # m/s
+velocity_change_threashold = 2
 fs =100 # Hz
 T = 1/fs # s
 L = 2.269 # m
@@ -98,14 +99,23 @@ Q_matrix = np.array([[0.01, 0, 0, 0, 0, 0, 0, 0],
                      [0, 0, 0, 0, 0, 0, 0.01, 0],
                      [0, 0, 0, 0, 0, 0, 0, 0.01]])
 
-R_matrix = np.array([[2.269/2,0,0,0,0,0,0],
-                     [0,1.649/2,0,0,0,0,0],
-                     [0,0,2.269/2,0,0,0,0],
-                     [0,0,0,(2.269/2)*1,0,0,0],
-                     [0,0,0,0,1.649/2,0,0],
-                     [0,0,0,0,0,(2.269/2)*2,0],
-                     [0,0,0,0,0,0,(1.649/2)*2]])
+# In case of error was in degrees
+# R_matrix = np.array([[(2.269/2),0,0,0,0,0,0],
+#                      [0,(1.649/2),0,0,0,0,0],
+#                      [0,0,(2.269/2),0,0,0,0],
+#                      [0,0,0,(2.269/2),0,0,0],
+#                      [0,0,0,0,(1.649/2),0,0],
+#                      [0,0,0,0,0,(2.269/2),0],
+#                      [0,0,0,0,0,0,np.deg2rad((1.649/2))]])
 
+# In case of error was in rad
+R_matrix = np.array([[(2.269/2),0,0,0,0,0,0],
+                     [0,(1.649/2),0,0,0,0,0],
+                     [0,0,(2.269/2),0,0,0,0],
+                     [0,0,0,(2.269/2),0,0,0],
+                     [0,0,0,0,(1.649/2),0,0],
+                     [0,0,0,0,0,(2.269/2),0],
+                     [0,0,0,0,0,0,(1.649/2)]])
 
 Z_matrix = np.zeros((6,1))
 
@@ -133,13 +143,23 @@ def odometry_callback(states:Odometry):
     # Corrupt signal
     ground_truth_yaw = euler_from_quaternion((states.pose.pose.orientation.x, states.pose.pose.orientation.y, states.pose.pose.orientation.z, states.pose.pose.orientation.w))[2]
 
-    corrupted_ground_truth = np.array([[states.pose.pose.position.x + np.random.normal(0,2.269/2)],
-                                      [states.pose.pose.position.y + np.random.normal(0,1.649/2)],
-                                      [states.pose.pose.position.z + np.random.normal(0,2.269/2)],
-                                      [states.twist.twist.linear.x + np.random.normal(0,2.269/2)],
-                                      [states.twist.twist.linear.y + np.random.normal(0,1.649/2)],
-                                      [states.twist.twist.linear.z + np.random.normal(0,2.269/2)],
-                                      [ground_truth_yaw + np.random.normal(0,1.649/2)]])
+    # In case of error was in degrees
+    # corrupted_ground_truth = np.array([[states.pose.pose.position.x + np.random.normal(0,np.sqrt(2.269/2))],
+    #                                   [states.pose.pose.position.y + np.random.normal(0,np.sqrt(1.649/2))],
+    #                                   [states.pose.pose.position.z + np.random.normal(0,np.sqrt(2.269/2))],
+    #                                   [states.twist.twist.linear.x + np.random.normal(0,np.sqrt(2.269/2))],
+    #                                   [states.twist.twist.linear.y + np.random.normal(0,np.sqrt(1.649/2))],
+    #                                   [states.twist.twist.linear.z + np.random.normal(0,np.sqrt(2.269/2))],
+    #                                   [ground_truth_yaw + np.deg2rad(np.random.normal(0,np.sqrt(1.649/2)))]])
+    
+    # In case of error was in rad
+    corrupted_ground_truth = np.array([[states.pose.pose.position.x + np.random.normal(0,np.sqrt(2.269/2))],
+                                      [states.pose.pose.position.y + np.random.normal(0,np.sqrt(1.649/2))],
+                                      [states.pose.pose.position.z + np.random.normal(0,np.sqrt(2.269/2))],
+                                      [states.twist.twist.linear.x + np.random.normal(0,np.sqrt(2.269/2))],
+                                      [states.twist.twist.linear.y + np.random.normal(0,np.sqrt(1.649/2))],
+                                      [states.twist.twist.linear.z + np.random.normal(0,np.sqrt(2.269/2))],
+                                      [ground_truth_yaw + np.random.normal(0,np.sqrt(1.649/2))]])
 
     Z_matrix = [[corrupted_ground_truth[0][0]],
                 [corrupted_ground_truth[1][0]],
@@ -161,13 +181,13 @@ def odometry_callback(states:Odometry):
     noisy_data.pose.pose.orientation.z = yaw_noisy[2]
     noisy_data.pose.pose.orientation.w = yaw_noisy[3]
 
-    # Z_matrix = [[states.pose.pose.position.x + np.random.normal(0,2.269/2)],
-    #             [states.pose.pose.position.y + np.random.normal(0,1.649/2)],
-    #             [states.pose.pose.position.z + np.random.normal(0,2.269/2)],
-    #             [states.twist.twist.linear.x + np.random.normal(0,2.269/2)],
-    #             [states.twist.twist.linear.y + np.random.normal(0,1.649/2)],
-    #             [states.twist.twist.linear.z + np.random.normal(0,2.269/2)],
-    #             [ground_truth_yaw + np.random.normal(0,1.649/2)]]
+    # Z_matrix = [[states.pose.pose.position.x + np.random.normal(0,np.sqrt(2.269/2))],
+    #             [states.pose.pose.position.y + np.random.normal(0,np.sqrt(1.649/2))],
+    #             [states.pose.pose.position.z + np.random.normal(0,np.sqrt(2.269/2))],
+    #             [states.twist.twist.linear.x + np.random.normal(0,np.sqrt(2.269/2))],
+    #             [states.twist.twist.linear.y + np.random.normal(0,np.sqrt(1.649/2))],
+    #             [states.twist.twist.linear.z + np.random.normal(0,np.sqrt(2.269/2))],
+    #             [ground_truth_yaw + np.random.normal(0,np.sqrt(1.649/2))]]
     
     if obtained_vd_flag and obtained_steering_flag:
             obtained_steering_flag = False
@@ -197,6 +217,11 @@ def kalman_filter():
     global K_matrix
     global B_matrix
 
+    # Store old velocities
+    old_vx = X_matrix[3,0]
+    old_vy = X_matrix[4,0]
+    old_vz = X_matrix[5,0]
+
     # Predict state ahead
     X_hat_matrix = np.matmul(A_matrix, X_matrix) + np.matmul(B_matrix, U_matrix)
 
@@ -211,6 +236,14 @@ def kalman_filter():
 
     # Update State
     X_matrix = X_hat_matrix + np.matmul(K_matrix, (Z_matrix - np.matmul(C_matrix, X_hat_matrix)))
+
+    # Check if the velocity had a drastic change
+    new_vx = X_matrix[3,0]
+    new_vy = X_matrix[4,0]
+    new_vz = X_matrix[5,0]
+    X_matrix[3,0] = X_matrix[3,0] if abs(new_vx-old_vx)<velocity_change_threashold else old_vx
+    X_matrix[4,0] = X_matrix[4,0] if abs(new_vy-old_vy)<velocity_change_threashold else old_vy
+    X_matrix[5,0] = X_matrix[5,0] if abs(new_vz-old_vz)<velocity_change_threashold else old_vz
 
     # Update Error Covariance
     P_matrix = np.matmul((I_matrix - np.matmul(K_matrix, C_matrix)), P_hat_matrix)
