@@ -20,7 +20,7 @@ from nav_msgs.msg import Odometry
 # ------------------------- Global Variables ------------------------- #
 ### Car Parameters ###
 radius_wheel = 0.340175 # Radius of wheels
-track_width = 2*0.82491 # (distance between two rear wheels)
+track_width = 2*0.82491 # 1.64982 # (distance between two rear wheels)
 wheel_base = 2.26972 # distance between front and rear wheels
 
 
@@ -119,12 +119,14 @@ def encoder_callback(msg:Float64MultiArray):
 
 
     ## Angular Velocity of the Wheels in rad ###
-    # omega_FL = abs(msg.data[0])
-    # FR_omega = abs(msg.data[1])
+    FL_omega = abs(msg.data[0])
+    FR_omega = abs(msg.data[1])
     RL_omega = abs(msg.data[2]) # R left
     RR_omega = abs(msg.data[3]) # R Right
     
     ## Velocity of wheels: V = ω . R ###
+    FL_velocity = FL_omega * radius_wheel
+    FR_velocity = FR_omega * radius_wheel
     RL_velocity = RL_omega * radius_wheel
     RR_velocity = RR_omega * radius_wheel
 
@@ -132,12 +134,20 @@ def encoder_callback(msg:Float64MultiArray):
     car_velocity = (RL_velocity + RR_velocity)/2
     car_omega_Z =  (RR_velocity - RL_velocity)/track_width
 
+    ### Steering Angle Calculation
+    if(car_omega_Z == 0):
+        steering_angle = 0
+    else:
+        I_C_R_distance = car_velocity/car_omega_Z
+        steering_angle = math.atan(wheel_base/I_C_R_distance)
+
     ### Integrate Velocities to find Postion ###
     # integrate()
     ### ------------ Integration START --------------  ###
 
     new_time = sim_time
     dt = new_time - old_time ##
+    frequency = 1/dt # TODO Remove
     old_time = new_time
     
     elapsed = new_time - start_time
@@ -160,6 +170,12 @@ def encoder_callback(msg:Float64MultiArray):
 
     ### ------------ Integration END --------------  ###
 
+    ### TEST TEST -START- TEST TEST ### #TODO REMOVE
+
+
+    ### TEST TEST -END- TEST TEST ### #TODO REMOVE
+
+
     ### Publish vehicle_velocity Data ###
     ### Linear & Angular Velocities ###
     vehicle_velocity_publishData = Odometry()
@@ -167,12 +183,12 @@ def encoder_callback(msg:Float64MultiArray):
     ## Build Data
     car_poistion_X = car_poistion_X
     car_poistion_Y = car_poistion_Y
-    car_poistion_Z = 0
+    car_poistion_Z = 0 
 
     car_theta_X = 0
     car_theta_Y = 0
     car_theta_Z = car_theta_Z
-    car_theta_W = 0
+    car_theta_W = steering_angle #TODO 
 
     car_velocity_X = car_velocity * math.cos(car_theta_Z) 
     car_velocity_Y = car_velocity * math.sin(car_theta_Z) 
@@ -226,10 +242,6 @@ def integrate():
     global new_time
     global old_time
     global elapsed_time
-
-    ###
-    # car_velocity_X = car_velocity * math.cos(car_theta_Z) 
-    # car_velocity_Y = car_velocity * math.sin(car_theta_Z) 
 
     ### --------------------------  ###
 
