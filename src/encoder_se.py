@@ -18,218 +18,243 @@ from nav_msgs.msg import Odometry
 
 # std_msgs/Header
 # ------------------------- Global Variables ------------------------- #
-PI = math.pi
-x = 0
-y = 0
-z = 0
-theta = math.pi/2
+### Car Parameters ###
+radius_wheel = 0.340175 # Radius of wheels
+track_width = 2*0.82491 # (distance between two rear wheels)
+wheel_base = 2.26972 # distance between front and rear wheels
 
-vel_x_old = 0
-vel_y_old = 0
-omega_old = 0
+
+PI = math.pi
+car_poistion_X = 0
+car_poistion_Y = 0
+car_theta_Z = math.pi/2
+
+car_velocity_X = 0
+car_velocity_Y = 0
+car_velocity_X_old = 0
+car_velocity_Y_old = 0
+car_omega_Z = 0
+car_omega_Z_old = 0
 
 sim_time = 0
-# old_time = time.time()
 new_time = 0
-first_time = True
-# time_zero = time.time() #TODO
-time_zero = 0
-
-#odom_time-Branch #TODO
-odom_time_start = 0 
-odom_time_curr = 0
-odom_dt = 0
-odom_first_time = True
+old_time = 0
+start_time = 0
+elapsed_time = 0
+first_time_flag = True
 
 
 # ------------------------- call back functions ------------------------- #
 def odom_time_callback(msg:Odometry): #odom_time-Branch #TODO
     pass
-    global odom_time_curr
-    global odom_time_start
-    global odom_dt
-    global odom_first_time
-
-    if(odom_first_time):
-        odom_time_start = msg.header.stamp.secs + msg.header.stamp.nsecs * 1e-9
-        odom_first_time = False
-    
-    odom_time_curr = msg.header.stamp.secs + msg.header.stamp.nsecs * 1e-9
-
-    odom_dt = odom_time_curr - odom_time_start
-    # rospy.loginfo("Time: " + str(odom_dt) )
 
 
 def clock_callback(msg:Clock):
     pass
     global sim_time
+    global old_time
+    global first_time_flag
 
     sim_time = msg.clock
     sim_time = sim_time.secs + sim_time.nsecs * 1e-9
 
-    # sim_time = time.time()
+    if(first_time_flag):
+        old_time = sim_time
+        start_time = sim_time
+        first_time_flag = False
+
 
 def odom_callback(msg:Odometry):
     pass
-    # Position Initialization:
-    global x
-    global y
-    global z
+    # Position Initialization: 
+    global car_poistion_X 
+    global car_poistion_Y
+    global car_theta_Z 
+
+    global car_velocity_X 
+    global car_velocity_Y 
+    global car_velocity_X_old 
+    global car_velocity_Y_old
+    global car_omega_Z 
+    global car_omega_Z_old 
 
     pose = msg.pose.pose
 
-    x = pose.position.x
-    y = pose.position.y
-    z = pose.position.z
+    car_poistion_X = pose.position.x
+    car_poistion_Y = pose.position.y
+    # z = pose.position.z
 
     # Velocities Initialization:
-    global vel_x_old
-    global vel_y_old
-    global omega_old
+    global car_velocity_X_old
+    global car_velocity_Y_old
+    global car_omega_Z_old
 
     twist = msg.twist.twist
 
-    vel_x_old = twist.linear.x
-    vel_y_old = twist.linear.y
-    omega_old = twist.angular.z
+    car_velocity_X_old = twist.linear.x
+    car_velocity_Y_old = twist.linear.y
+    car_omega_Z_old = twist.angular.z
 
     odom_subscriber.unregister()
 
 def encoder_callback(msg:Float64MultiArray):
     pass
-    # rospy.loginfo(msg.data)
+    ### Global Variables ###   
+    global car_poistion_X 
+    global car_poistion_Y
+    global car_theta_Z 
 
-    r_wheel = 0.340175
-    d = 0.82491 # 2*d = track width (distance between two back wheels)
-    # d = 0.8
-    l = 2.26972 # Wheel Base
+    global car_velocity_X 
+    global car_velocity_Y 
+    global car_velocity_X_old 
+    global car_velocity_Y_old
+    global car_omega_Z 
+    global car_omega_Z_old
 
-    # b = 2*82491
-    # l = 2.26972
-
-    # Vel:
-    # omega_FL = abs(msg.data[0])
-    omega_right = abs(msg.data[3])
-    omega_left = abs(msg.data[2])
-    
-    # v_FL = omega_FL * r_wheel
-    v_right = omega_right * r_wheel
-    v_left = omega_left * r_wheel
-    
-
-    vel = (v_left + v_right)/2
-
-    # Steering:    
-
-    right = False
-    v_big = v_right
-    v_small = v_left
-    if(v_left > v_right):
-        v_big = v_left
-        v_small = v_right
-        right = True
-        
-    # slope = (v_big - v_small)/2*d
-    # R_small = 1/(slope) * v_small
-    # steering_angle = math.atan(l / (R_small + d))
-
-    # ratio_omega = 1.78 #TODO Remove
-    w_z = (v_big - v_small)/(2*d)
-    # w_z = ratio_omega * w_z
-
-
-    if(right):
-        w_z = -1*w_z
-
-    publishData = Vector3()
-
-    publishData.x = vel
-    publishData.z = w_z
-
-
-    vehicle_velocities_publisher.publish(publishData)
-    integrate(vel,w_z)
-
-    # rospy.loginfo(vel)
-
-# ------------------------- Regular Functions ------------------------- #
-def integrate(vel, omega):
-    pass
-    global x
-    global y
-    global theta
-    global old_time
+    global sim_time
     global new_time
-    global first_time
-    global time_zero
-    global vel_x_old
-    global vel_y_old
-    global omega_old
+    global old_time
+    global elapsed_time
 
-    # global test_dt #TODO remove
 
-    if(first_time):
-        # old_time = time.time()
-        old_time = sim_time #TODO
-        time_zero = old_time
-        first_time = False
 
-    # new_time = time.time()
-    new_time = sim_time #TODO
+    ## Angular Velocity of the Wheels in rad ###
+    # omega_FL = abs(msg.data[0])
+    # FR_omega = abs(msg.data[1])
+    RL_omega = abs(msg.data[2]) # R left
+    RR_omega = abs(msg.data[3]) # R Right
+    
+    ## Velocity of wheels: V = ω . R ###
+    RL_velocity = RL_omega * radius_wheel
+    RR_velocity = RR_omega * radius_wheel
 
-    dt = new_time - old_time
-    # dt = 1/60
+    ### Car Linear & Angular Velocity ###
+    car_velocity = (RL_velocity + RR_velocity)/2
+    car_omega_Z =  (RR_velocity - RL_velocity)/track_width
 
-    vel_x = vel * math.cos(theta) 
-    vel_y = vel * math.sin(theta)
+    ### Integrate Velocities to find Postion ###
+    # integrate()
+    ### ------------ Integration START --------------  ###
+
+    new_time = sim_time
+    dt = new_time - old_time ##
+    old_time = new_time
+    
+    elapsed = new_time - start_time
 
     # -------------------  Euler ----------------------- #
-    # x = x + vel_x*dt
-    # y = y + vel_y*dt
+    # car_poistion_X = car_poistion_X + car_velocity_X*dt
+    # car_poistion_Y = car_poistion_Y + car_velocity_Y*dt
     # theta = theta + omega*dt
 
     # -------------------  Trapazoid ----------------------- #
-    x = x + ( (vel_x + vel_x_old)/2 )*dt
-    y = y + ( (vel_y + vel_y_old)/2 )*dt
-    theta = theta + ( (omega + omega_old)/2 )*dt
+    car_poistion_X = car_poistion_X + ( (car_velocity_X + car_velocity_X_old)/2 )*dt
+    car_poistion_Y = car_poistion_Y + ( (car_velocity_Y + car_velocity_Y_old)/2 )*dt
+    car_theta_Z = car_theta_Z + ( (car_omega_Z + car_omega_Z_old)/2 )*dt
 
-    vel_x_old = vel_x
-    vel_y_old = vel_y
-    omega_old = omega
+
+    #update old values with new values
+    car_velocity_X_old = car_velocity_X
+    car_velocity_Y_old = car_velocity_Y
+    car_omega_Z_old = car_omega_Z
+
+    ### ------------ Integration END --------------  ###
+
+    ### Publish vehicle_velocity Data ###
+    ### Linear & Angular Velocities ###
+    vehicle_velocity_publishData = Odometry()
+
+    ## Build Data
+    car_poistion_X = car_poistion_X
+    car_poistion_Y = car_poistion_Y
+    car_poistion_Z = 0
+
+    car_theta_X = 0
+    car_theta_Y = 0
+    car_theta_Z = car_theta_Z
+    car_theta_W = 0
+
+    car_velocity_X = car_velocity * math.cos(car_theta_Z) 
+    car_velocity_Y = car_velocity * math.sin(car_theta_Z) 
+    car_velocity_Z = 0
+
+    car_omega_X = 0
+    car_omega_Y = 0
+    car_omega_Z = car_omega_Z
+
+    ## Attach Data
+    # Pose
+    vehicle_velocity_publishData.pose.pose.position.x = car_poistion_X
+    vehicle_velocity_publishData.pose.pose.position.y = car_poistion_Y
+    vehicle_velocity_publishData.pose.pose.position.z = car_poistion_Z
+
+    vehicle_velocity_publishData.pose.pose.orientation.x = car_theta_X
+    vehicle_velocity_publishData.pose.pose.orientation.y = car_theta_Y
+    vehicle_velocity_publishData.pose.pose.orientation.z = car_theta_Z
+    vehicle_velocity_publishData.pose.pose.orientation.w = car_theta_W
+
+    # Twist
+    vehicle_velocity_publishData.twist.twist.linear.x = car_velocity_X
+    vehicle_velocity_publishData.twist.twist.linear.y = car_velocity_Y
+    vehicle_velocity_publishData.twist.twist.linear.z = car_velocity_Z
+
+    vehicle_velocity_publishData.twist.twist.angular.x = car_omega_X
+    vehicle_velocity_publishData.twist.twist.angular.y = car_omega_Y
+    vehicle_velocity_publishData.twist.twist.angular.z = car_omega_Z
+
+    ## Publish Data
+    encoder_state_estimation_topic_publisher.publish(vehicle_velocity_publishData)
+
+    # rospy.loginfo("Msg")
+
+# ------------------------- Regular Functions ------------------------- #
+def integrate():
+    pass
+    ### Global Variables ###   
+    global car_poistion_X 
+    global car_poistion_Y
+    global car_theta_Z 
+
+    global car_velocity_X 
+    global car_velocity_Y 
+    global car_velocity_X_old 
+    global car_velocity_Y_old
+    global car_omega_Z 
+    global car_omega_Z_old
+
+    global sim_time
+    global new_time
+    global old_time
+    global elapsed_time
+
+    ###
+    # car_velocity_X = car_velocity * math.cos(car_theta_Z) 
+    # car_velocity_Y = car_velocity * math.sin(car_theta_Z) 
+
+    ### --------------------------  ###
+
+    new_time = sim_time
+    dt = new_time - old_time ##
+    old_time = new_time
+    
+    elapsed = new_time - start_time
+
+    # -------------------  Euler ----------------------- #
+    # car_poistion_X = car_poistion_X + car_velocity_X*dt
+    # car_poistion_Y = car_poistion_Y + car_velocity_Y*dt
+    # theta = theta + omega*dt
+
+    # -------------------  Trapazoid ----------------------- #
+    car_poistion_X = car_poistion_X + ( (car_velocity_X + car_velocity_X_old)/2 )*dt
+    car_poistion_Y = car_poistion_Y + ( (car_velocity_Y + car_velocity_Y_old)/2 )*dt
+    car_theta_Z = car_theta_Z + ( (car_omega_Z + car_omega_Z_old)/2 )*dt
+
+    #update old values with new values
+    car_velocity_X_old = car_velocity_X
+    car_velocity_Y_old = car_velocity_Y
+    car_omega_Z_old = car_omega_Z
 
     # -------------------  RK4 ----------------------- #
-
-    # x += (k1_x + 2*k2_x + 2*k3_x + k4_x) * dt / 6
-    # y += (k1_y + 2*k2_y + 2*k3_y + k4_y) * dt / 6
-    # # theta += (k1_theta + 2*k2_theta + 2*k3_theta + k4_theta) * dt / 6
-
-    # --------------------------------------------------
-    old_time = new_time
-    elapsed = new_time - time_zero
-
-    out = Vector3()
-    out.x = x
-    out.y = y
-
-    
-    if(theta < 0):
-        theta += 2*PI
-    if(theta >= 2*PI):
-        theta -= 2*PI
-
-    theta_out = theta * (180/PI)
-    out.z = theta_out #TODO uncomment
-
-    # if(dt == 0): #TODO remove
-    #     out.z = 0
-    # else:
-    #     out.z = 1/dt
-
-    # out.z = elapsed #TODO remove
-
-    # out.z = odom_dt #TODO remove
-
-    vehicle_position_publisher.publish(out)
 
 
     
@@ -244,11 +269,12 @@ if __name__ == "__main__":
 
 
     # ------------------------- Topics ------------------------- #
-    wheel_vel_topic = ("/wheel_vel" , Float64MultiArray)
-    state_estimation_encoder_topic = ('/vehicle_velocities', Vector3)
-    xyz_estimation_encoder_topic = ('/vehicle_position', Vector3)
-    clock_topic = ('/clock', Clock)
-    odom_topic = ('/odom', Odometry)
+    wheel_vel_topic = ("/wheel_vel" , Float64MultiArray) # Subscribe
+    clock_topic = ('/clock', Clock) # Subscribe
+    odom_topic = ('/odom', Odometry) # Subscribe
+    # state_estimation_encoder_topic = ('/vehicle_velocities', Vector3) # Publish
+    # xyz_estimation_encoder_topic = ('/vehicle_position', Vector3) # Publish
+    encoder_state_estimation_topic = ('/encoder_state_estimation', Odometry) # Publish
 
     # ------------------------- Subscribers ------------------------- #
     
@@ -263,13 +289,14 @@ if __name__ == "__main__":
 
     # ------------------------- publishers ------------------------- #
 
-    vehicle_velocities_publisher = rospy.Publisher(state_estimation_encoder_topic[0], state_estimation_encoder_topic[1], queue_size=10)
-    vehicle_position_publisher = rospy.Publisher(xyz_estimation_encoder_topic[0], xyz_estimation_encoder_topic[1], queue_size=10)
+    # vehicle_velocity_publisher = rospy.Publisher(state_estimation_encoder_topic[0], state_estimation_encoder_topic[1], queue_size=10)
+    # vehicle_position_publisher = rospy.Publisher(xyz_estimation_encoder_topic[0], xyz_estimation_encoder_topic[1], queue_size=10)
+    encoder_state_estimation_topic_publisher = rospy.Publisher(encoder_state_estimation_topic[0], encoder_state_estimation_topic[1], queue_size=10)
 
     # ------------------------- Rest of Code ------------------------- #
     rospy.spin()
 
     rospy.loginfo("encoder_se Exit")
 
-    duration = new_time - time_zero
+    duration = new_time - start_time
     rospy.loginfo("Duration: " + str(duration) )
