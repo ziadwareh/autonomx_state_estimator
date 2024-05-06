@@ -19,7 +19,7 @@ L = 2.269 # m
 '''
     The Kalman filter consists of 5 equations
 
-    1] Predict state ahead: X_hat = A * K + B * U
+    1] Predict state ahead: X_hat = A * X + B * U
     2] Predict Error Covariance: P_hat = A * P * transpose(A) + Q
     3] Calculate Kalman gain: K = P * transpose(C) * inverse(C * P * transpose(C) + R)
     4] Update State: X = X_hat + K * [Z - C * X_hat]
