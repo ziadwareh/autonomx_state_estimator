@@ -55,53 +55,65 @@ L = 2.269 # m
 '''
 
 # [vx, vy, vz, ax, ay, az, yaw, Yaw_dot, steering angle]T
-X_matrix = np.zeros((7,1))
+X_matrix = np.zeros((9,1))
 
-X_hat_matrix = np.zeros((7,1))
+X_hat_matrix = np.zeros((9,1))
+                #     x  y Vx  Vy h  h' s  a
+A_matrix = np.array([[1, 0, 0, 0, 0, 0, 0, 0, 0], # x
+                     [0, 1, 0, T, 0, 0, 0, 0, 0], # y
+                     [0, 0, 0, 0, 0, 0, 0, 0, 0], # Vx
+                     [0, 0, 0, 1, 0, 0, 0, T, 0], # Vy
+                     [0, 0, 0, 0, 1, T, 0, 0, 0], # heading
+                     [0, 0, 0, 0, 0, 1, 0, 0, T], # heading rate
+                     [0, 0, 0, 0, 0, 0, 0, 0, 0], # Steering angle
+                     [0, 0, 0, -1.5, 0, 0, 0, 0, 0], # a
+                     [0, 0, 0, 0, 0, -1.35, 0, 0, 0] # heading double dot
+                     ]) 
 
-A_matrix = np.array([[1, 0, 0, 0, 0, 0, 0], # x
-                     [0, 1, 0, 0, 0, 0, 0], # y
-                     [0, 0, 0, 0, 0, 0, 0], # Vx
-                     [0, 0, 0, 0, 0, 0, 0], # Vy
-                     [0, 0, 0, 0, 1, 0, 0], # heading
-                     [0, 0, 0, 0, 0, 0, 0], # heading rate
-                     [0, 0, 0, 0, 0, 0, 0]]) # Steering angle
-
-B_matrix = np.array([[0, 0, 0],
-                     [T, 0, 0],
-                     [0, 0, 0],
-                     [1, 0, 0],
-                     [0, T, 0],
-                     [0, 1, 0],
-                     [0, 0, 1]])
+B_matrix = np.array([[0, 0, 0], # x
+                     [0, 0, 0], # y
+                     [0, 0, 0], # Vx
+                     [0, 0, 0], # vy
+                     [0, 0, 0], # heading
+                     [0, 0, 0], # heading rate
+                     [0, 0, 1], # steering angle
+                     [1.5, 0, 0], # a
+                     [0, 1.35, 0], # heading double dot
+                     ]) 
 
 U_matrix = np.zeros((3,1))
 
-C_matrix = np.array([[0, 0, 0, 1, 0, 0, 0],
-                     [0, 0, 0, 0, 0, 1, 0],
-                     [0, 0, 0, 0, 0, 0, 1]])
+C_matrix = np.array([[0, 0, 0, 1, 0, 0, 0, 0, 0],
+                     [0, 0, 0, 0, 0, 1, 0, 0, 0],
+                     [0, 0, 0, 0, 0, 0, 1, 0, 0]])
 
 # I assumed an error of 100 m/s for velocity, 100 m/s^2 for acceleration, and 1 rad for yaw and steering angle
 
-P_matrix = np.array([[1, 0, 0, 0, 0, 0, 0],
-                     [0, 1, 0, 0, 0, 0, 0],
-                     [0, 0, 1, 0, 0, 0, 0],
-                     [0, 0, 0, 1, 0, 0, 0],
-                     [0, 0, 0, 0, 1, 0, 0],
-                     [0, 0, 0, 0, 0, 1, 0],
-                     [0, 0, 0, 0, 0, 0, 1]])
+P_matrix = np.array([[1, 0, 0, 0, 0, 0, 0, 0, 0],
+                     [0, 1, 0, 0, 0, 0, 0, 0, 0],
+                     [0, 0, 1, 0, 0, 0, 0, 0, 0],
+                     [0, 0, 0, 1, 0, 0, 0, 0, 0],
+                     [0, 0, 0, 0, 1, 0, 0, 0, 0],
+                     [0, 0, 0, 0, 0, 1, 0, 0, 0],
+                     [0, 0, 0, 0, 0, 0, 1, 0, 0],
+                     [0, 0, 0, 0, 0, 0, 0, 1, 0],
+                     [0, 0, 0, 0, 0, 0, 0, 0, 0]
+                     ])
 
-P_hat_matrix = np.zeros((7,7))
+P_hat_matrix = np.zeros((9,9))
 
 # I assumed a process noise of 0.01 for every state
 
-Q_matrix = np.array([[0.01, 0, 0, 0, 0, 0, 0],
-                     [0, 0.01, 0, 0, 0, 0, 0],
-                     [0, 0, 0.01, 0, 0, 0, 0],
-                     [0, 0, 0, 0.01, 0, 0, 0],
-                     [0, 0, 0, 0, 0.01, 0, 0],
-                     [0, 0, 0, 0, 0, 0.01, 0],
-                     [0, 0, 0, 0, 0, 0, 0.01]])
+Q_matrix = np.array([[0.01, 0, 0, 0, 0, 0, 0, 0, 0],
+                     [0, 0.01, 0, 0, 0, 0, 0, 0, 0],
+                     [0, 0, 0.01, 0, 0, 0, 0, 0, 0],
+                     [0, 0, 0, 0.01, 0, 0, 0, 0, 0],
+                     [0, 0, 0, 0, 0.01, 0, 0, 0, 0],
+                     [0, 0, 0, 0, 0, 0.01, 0, 0, 0],
+                     [0, 0, 0, 0, 0, 0, 0.01, 0, 0],
+                     [0, 0, 0, 0, 0, 0, 0, 0.01, 0],
+                     [0, 0, 0, 0, 0, 0, 0, 0, 0.01]
+                     ])
 
 R_matrix = np.array([[0, 0, 0],
                      [0, 0, 0],
@@ -112,7 +124,7 @@ Z_matrix = np.zeros((3,1))
 
 K_matrix = np.zeros_like(np.transpose(C_matrix))
 
-I_matrix = np.identity(7)
+I_matrix = np.identity(9)
 
 ### START CODE ###
 
@@ -223,7 +235,10 @@ def encoder_callback(msg:Float64MultiArray):
 
     ### Car Linear & Angular Velocity & Steering Angle###
     velocity = (RL_velocity + RR_velocity)/2
+    velocity = 0.995*velocity #TODO REMOVE
+
     yaw_rate =  (RR_velocity - RL_velocity)/track_width
+    yaw_rate = 0.975*yaw_rate #TODO REMOVE
 
     # Steering Angle
     if(yaw_rate == 0):
@@ -331,7 +346,8 @@ def kalman_filter():
     K_matrix = np.matmul(A,C)
 
     # Update State
-    X_matrix = X_hat_matrix + np.matmul(K_matrix, (Z_matrix - np.matmul(C_matrix, X_hat_matrix)))
+    # X_matrix = X_hat_matrix + np.matmul(K_matrix, (Z_matrix - np.matmul(C_matrix, X_hat_matrix))) #TODO Uncomment
+    X_matrix = X_hat_matrix
 
     #Constrain the theta to be within -pi <= theta <= pi
     if(X_matrix[4,0] < -math.pi):
