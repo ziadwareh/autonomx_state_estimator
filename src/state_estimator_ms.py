@@ -3,8 +3,11 @@ import rospy
 from std_msgs.msg import Float64
 from geometry_msgs.msg import Vector3
 from nav_msgs.msg import Odometry
-import numpy as np
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
+
+import os
+os.environ["OPEN-BLAS_NUM_THREADS"] = "1"
+import numpy as np
 
 ####################### Global variables declarations #######################
 
@@ -17,20 +20,20 @@ L = 2.269 # m
 '''
     The Kalman filter consists of 5 equations
 
-    1] Predict state ahead: X_hat = A * K + B * U
-    2] Predict Error Covariance: P_hat = A * P * transpose(A) + Q
-    3] Calculate Kalman gain: K = P * transpose(C) * inverse(C * P * transpose(C) + R)
-    4] Update State: X = X_hat + K * [Z - C * X_hat]
-    5] Update Error Covariance: P = [I - K * C] * P_hat
+    1] Predict state ahead: X_hat = f(x,u)
+    2] Predict Error Covariance: P_hat = F * P * transpose(F) + Q
+    3] Calculate Kalman gain: K = P * transpose(H) * inverse(H * P * transpose(H) + R)
+    4] Update State: X = X_hat + K * [Z - h(x)]
+    5] Update Error Covariance: P = [I - K * H] * P_hat
 
     Now it is important to note that:
 
-    1] X_matrix: The states of the system and they are transpose([vx, vy, vz, ax, ay, az, yaw, yaw_dot, steering angle])
+    1] X_matrix: The states of the system and they are transpose([x, y, z, vx, vy, vz, yaw, steering angle])
     2] X_hat_matrix: These are the initially estimated states
-    3] A_matrix: The state transition matrix
-    4] B_matrix: The input mapping matrix
-    5] U_matrix: A matrix containing the inputs to the system
-    6] C_matrix: This is the matrix mapping states to outputs
+    3] f_matrix (AKA f(x,u)): The state transition matrix
+    4] F_matrix: This is the Jacobian of the f_matrix w.r.t the states
+    5] h_matrix (AKA h(x)): This is the observations matrix
+    6] H_matrix: This is the Jacobian of the h_matrix w.r.t the states
     7] P_matrix: This is the prediction error Covariance matrix
     8] P_hat_matrix: This is the initially estiamted prediction error Covariance matrix
     9] Q_matrix: This is the process noise Covariance matrix. It is assumed to be white gaussian noise
@@ -42,32 +45,43 @@ L = 2.269 # m
       Kalman Parameters initialization:
 '''
 
+# These are the inputs we need for the f_matrix. Their Values are obtained from the controller outputs callbacks.
+Vd = 0
+steering_angle = 0
+
+
 # [x, y, z, vx, vy, vz, yaw, steering angle]T
 X_matrix = np.zeros((8,1))
 
 X_hat_matrix = np.zeros((8,1))
 
-A_matrix = np.array([[1, 0, 0, 0, 0, 0, 0, 0],
-                     [0, 1, 0, 0, 0, 0, 0, 0],
+f_matrix = np.array([[X_matrix[0,0] - T*Vd*np.sin(X_matrix[-2,0])],
+                     [X_matrix[1,0] + T*Vd*np.cos(X_matrix[-2,0])],
+                     [X_matrix[2,0]],
+                     [-Vd*np.sin(X_matrix[-2,0])],
+                     [Vd*np.cos(X_matrix[-2,0])],
+                     [0],
+                     [X_matrix[-2,0] + T*Vd*np.tan(X_matrix[-1,0])/L],
+                     [steering_angle]])
+
+F_matrix = np.array([[1, 0, 0, 0, 0, 0, -T*Vd*np.cos(X_matrix[-2,0]), 0],
+                     [0, 1, 0, 0, 0, 0, -T*Vd*np.sin(X_matrix[-2,0]), 0],
                      [0, 0, 1, 0, 0, 0, 0, 0],
+                     [0, 0, 0, 0, 0, 0, -Vd*np.cos(X_matrix[-2,0]), 0],
+                     [0, 0, 0, 0, 0, 0, -Vd*np.sin(X_matrix[-2,0]), 0],
                      [0, 0, 0, 0, 0, 0, 0, 0],
-                     [0, 0, 0, 0, 0, 0, 0, 0],
-                     [0, 0, 0, 0, 0, 0, 0, 0],
-                     [0, 0, 0, 0, 0, 0, 1, 0],
+                     [0, 0, 0, 0, 0, 0, 1, (T*Vd)/(L*(np.cos(X_matrix[-1,0])**2))],
                      [0, 0, 0, 0, 0, 0, 0, 0]])
 
-B_matrix = np.array([[-T*np.sin(X_matrix[-2,0]), 0],
-                     [T*np.cos(X_matrix[-2,0]), 0],
-                     [0, 0],
-                     [-np.sin(X_matrix[-2,0]), 0],
-                     [np.cos(X_matrix[-2,0]), 0],
-                     [0, 0],
-                     [T*np.tan(X_matrix[-1,0])/L, 0],
-                     [0, 1]])
+h_matrix = np.array([[X_matrix[0,0]],
+                     [X_matrix[1,0]],
+                     [X_matrix[2,0]],
+                     [X_matrix[3,0]],
+                     [X_matrix[4,0]],
+                     [X_matrix[5,0]],
+                     [X_matrix[6,0]]])
 
-U_matrix = np.zeros((2,1))
-
-C_matrix = np.array([[1, 0, 0, 0, 0, 0, 0, 0],
+H_matrix = np.array([[1, 0, 0, 0, 0, 0, 0, 0],
                      [0, 1, 0, 0, 0, 0, 0, 0],
                      [0, 0, 1, 0, 0, 0, 0, 0],
                      [0, 0, 0, 1, 0, 0, 0, 0],
@@ -119,7 +133,7 @@ R_matrix = np.array([[(2.269/2),0,0,0,0,0,0],
 
 Z_matrix = np.zeros((6,1))
 
-K_matrix = np.zeros_like(np.transpose(C_matrix))
+K_matrix = np.zeros_like(np.transpose(H_matrix))
 
 I_matrix = np.identity(8)
 
@@ -180,14 +194,6 @@ def odometry_callback(states:Odometry):
     noisy_data.pose.pose.orientation.y = yaw_noisy[1]
     noisy_data.pose.pose.orientation.z = yaw_noisy[2]
     noisy_data.pose.pose.orientation.w = yaw_noisy[3]
-
-    # Z_matrix = [[states.pose.pose.position.x + np.random.normal(0,np.sqrt(2.269/2))],
-    #             [states.pose.pose.position.y + np.random.normal(0,np.sqrt(1.649/2))],
-    #             [states.pose.pose.position.z + np.random.normal(0,np.sqrt(2.269/2))],
-    #             [states.twist.twist.linear.x + np.random.normal(0,np.sqrt(2.269/2))],
-    #             [states.twist.twist.linear.y + np.random.normal(0,np.sqrt(1.649/2))],
-    #             [states.twist.twist.linear.z + np.random.normal(0,np.sqrt(2.269/2))],
-    #             [ground_truth_yaw + np.random.normal(0,np.sqrt(1.649/2))]]
     
     if obtained_vd_flag and obtained_steering_flag:
             obtained_steering_flag = False
@@ -195,18 +201,18 @@ def odometry_callback(states:Odometry):
             kalman_filter() 
 
 def input_velocity_callback(input_throttle:Float64):
-    global U_matrix
+    global Vd
     global obtained_vd_flag
 
-    U_matrix[0,0] = input_throttle.data * max_velocity
+    Vd = input_throttle.data * max_velocity
     obtained_vd_flag = True
 
 
 def input_steering_angle_callback(input_steering_angle:Float64):
-    global U_matrix
+    global steering_angle
     global obtained_steering_flag
 
-    U_matrix[1,0] = np.deg2rad(input_steering_angle.data)
+    steering_angle = np.deg2rad(input_steering_angle.data)
     obtained_steering_flag = True
 
 def kalman_filter():
@@ -215,7 +221,9 @@ def kalman_filter():
     global P_matrix
     global P_hat_matrix
     global K_matrix
-    global B_matrix
+    global f_matrix
+    global F_matrix
+    global h_matrix
 
     # Store old velocities
     old_vx = X_matrix[3,0]
@@ -223,19 +231,45 @@ def kalman_filter():
     old_vz = X_matrix[5,0]
 
     # Predict state ahead
-    X_hat_matrix = np.matmul(A_matrix, X_matrix) + np.matmul(B_matrix, U_matrix)
+    f_matrix = np.array([[X_matrix[0,0] - T*Vd*np.sin(X_matrix[-2,0])],
+                     [X_matrix[1,0] + T*Vd*np.cos(X_matrix[-2,0])],
+                     [X_matrix[2,0]],
+                     [-Vd*np.sin(X_matrix[-2,0])],
+                     [Vd*np.cos(X_matrix[-2,0])],
+                     [0],
+                     [X_matrix[-2,0] + T*Vd*np.tan(X_matrix[-1,0])/L],
+                     [steering_angle]])
+    
+    X_hat_matrix = f_matrix
 
     # Predict Error Covariance
-    P_hat_matrix = np.matmul(np.matmul(A_matrix, P_matrix), np.transpose(A_matrix)) + Q_matrix
+    F_matrix = np.array([[1, 0, 0, 0, 0, 0, -T*Vd*np.cos(X_matrix[-2,0]), 0],
+                     [0, 1, 0, 0, 0, 0, -T*Vd*np.sin(X_matrix[-2,0]), 0],
+                     [0, 0, 1, 0, 0, 0, 0, 0],
+                     [0, 0, 0, 0, 0, 0, -Vd*np.cos(X_matrix[-2,0]), 0],
+                     [0, 0, 0, 0, 0, 0, -Vd*np.sin(X_matrix[-2,0]), 0],
+                     [0, 0, 0, 0, 0, 0, 0, 0],
+                     [0, 0, 0, 0, 0, 0, 1, (T*Vd)/(L*(np.cos(X_matrix[-1,0])**2))],
+                     [0, 0, 0, 0, 0, 0, 0, 0]])
+    
+    P_hat_matrix = np.matmul(np.matmul(F_matrix, P_matrix), np.transpose(F_matrix)) + Q_matrix
 
     # Calculate Kalman Gain
-    A = np.matmul(P_hat_matrix, np.transpose(C_matrix))
-    B = np.matmul(np.matmul(C_matrix, P_hat_matrix), np.transpose(C_matrix))
+    A = np.matmul(P_hat_matrix, np.transpose(H_matrix))
+    B = np.matmul(np.matmul(H_matrix, P_hat_matrix), np.transpose(H_matrix))
     C = np.linalg.inv(B + R_matrix)
     K_matrix = np.matmul(A,C)
 
     # Update State
-    X_matrix = X_hat_matrix + np.matmul(K_matrix, (Z_matrix - np.matmul(C_matrix, X_hat_matrix)))
+    h_matrix = np.array([[X_matrix[0,0]],
+                     [X_matrix[1,0]],
+                     [X_matrix[2,0]],
+                     [X_matrix[3,0]],
+                     [X_matrix[4,0]],
+                     [X_matrix[5,0]],
+                     [X_matrix[6,0]]])
+    
+    X_matrix = X_hat_matrix + np.matmul(K_matrix, (Z_matrix - h_matrix))
 
     # Check if the velocity had a drastic change
     new_vx = X_matrix[3,0]
@@ -246,14 +280,7 @@ def kalman_filter():
     X_matrix[5,0] = X_matrix[5,0] if abs(new_vz-old_vz)<velocity_change_threashold else old_vz
 
     # Update Error Covariance
-    P_matrix = np.matmul((I_matrix - np.matmul(K_matrix, C_matrix)), P_hat_matrix)
-
-    # Update the B_matrix for the next snapshot
-    B_matrix[0,0] = -T*np.sin(X_matrix[-2,0])
-    B_matrix[1,0] = T*np.cos(X_matrix[-2,0])
-    B_matrix[3,0] = -np.sin(X_matrix[-2,0])
-    B_matrix[4,0] = np.cos(X_matrix[-2,0])
-    B_matrix[6,0] = T*np.tan(X_matrix[-1,0])/L
+    P_matrix = np.matmul((I_matrix - np.matmul(K_matrix, H_matrix)), P_hat_matrix)
     
     '''
         publishing
