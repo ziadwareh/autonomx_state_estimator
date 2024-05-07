@@ -1,7 +1,7 @@
 <launch>
     <arg name="sampling_rate" default="100" />
     <arg name="node" default="ms" />
-    <arg name="path" default="straight" />
+    <arg name="path" default="circular" />
     <!-- Type of path: 'straight', 'circular', 'lane_change', 'infinity' -->
     
     <include file="$(find vehicle_control_pkg)/launch/system.launch"> 
