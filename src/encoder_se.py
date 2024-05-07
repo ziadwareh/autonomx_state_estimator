@@ -27,7 +27,7 @@ wheel_base = 2.26972 # distance between front and rear wheels
 PI = math.pi
 car_poistion_X = 0
 car_poistion_Y = 0
-car_theta_Z = math.pi/2
+car_theta_Z = 0 #TODO math.pi/2 
 
 car_velocity_X = 0
 car_velocity_Y = 0
@@ -147,8 +147,8 @@ def encoder_callback(msg:Float64MultiArray):
 
     new_time = sim_time
     dt = new_time - old_time ##
-    frequency = 1/dt # TODO Remove
     old_time = new_time
+    
     
     elapsed = new_time - start_time
 
@@ -161,6 +161,11 @@ def encoder_callback(msg:Float64MultiArray):
     car_poistion_X = car_poistion_X + ( (car_velocity_X + car_velocity_X_old)/2 )*dt
     car_poistion_Y = car_poistion_Y + ( (car_velocity_Y + car_velocity_Y_old)/2 )*dt
     car_theta_Z = car_theta_Z + ( (car_omega_Z + car_omega_Z_old)/2 )*dt
+
+    if(car_theta_Z > math.pi):
+        car_theta_Z -= 2*math.pi
+    elif(car_theta_Z < -math.pi):
+        car_theta_Z += 2*math.pi
 
 
     #update old values with new values
@@ -190,8 +195,8 @@ def encoder_callback(msg:Float64MultiArray):
     car_theta_Z = car_theta_Z
     car_theta_W = steering_angle #TODO 
 
-    car_velocity_X = car_velocity * math.cos(car_theta_Z) 
-    car_velocity_Y = car_velocity * math.sin(car_theta_Z) 
+    car_velocity_X = car_velocity * math.sin(-car_theta_Z) 
+    car_velocity_Y = car_velocity * math.cos(car_theta_Z) 
     car_velocity_Z = 0
 
     car_omega_X = 0
