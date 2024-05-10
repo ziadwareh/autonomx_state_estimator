@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
+
+# Limit the number of threads NumPy's underlying LA library has access to
+import os
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+
 import rospy
 from std_msgs.msg import Float64
-from geometry_msgs.msg import Vector3
 from nav_msgs.msg import Odometry
 import numpy as np
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
 
 ####################### Global variables declarations #######################
 
-max_velocity = 33.33 # m/s
-velocity_change_threashold = 2
-fs =100 # Hz
-T = 1/fs # s
-L = 2.269 # m
+wheelbase = rospy.get_param('~wheelbase', 2.269)
+sample_time = -1
+odom_time_prev = None
+velocity_change_threshold = 2
+
 
 '''
     The Kalman filter consists of 5 equations
@@ -25,7 +29,7 @@ L = 2.269 # m
 
     Now it is important to note that:
 
-    1] X_matrix: The states of the system and they are transpose([vx, vy, vz, ax, ay, az, yaw, yaw_dot, steering angle])
+    1] X_matrix: The states of the system and they are transpose([x, y, v, yaw, steering angle])
     2] X_hat_matrix: These are the initially estimated states
     3] A_matrix: The state transition matrix
     4] B_matrix: The input mapping matrix
@@ -42,86 +46,48 @@ L = 2.269 # m
       Kalman Parameters initialization:
 '''
 
-# [x, y, z, vx, vy, vz, yaw, steering angle]T
-X_matrix = np.zeros((8,1))
+# [x, y, yaw, steering angle]T
+X_matrix = np.zeros((4,1))
+# X_matrix = np.array([[0.0], [-73.8655], [0.0], [0.0]])
 
-X_hat_matrix = np.zeros((8,1))
+X_hat_matrix = np.zeros((4,1))
+# X_hat_matrix = np.array([[0.0], [-73.8655], [0.0], [0.0]])
 
-A_matrix = np.array([[1, 0, 0, 0, 0, 0, 0, 0],
-                     [0, 1, 0, 0, 0, 0, 0, 0],
-                     [0, 0, 1, 0, 0, 0, 0, 0],
-                     [0, 0, 0, 0, 0, 0, 0, 0],
-                     [0, 0, 0, 0, 0, 0, 0, 0],
-                     [0, 0, 0, 0, 0, 0, 0, 0],
-                     [0, 0, 0, 0, 0, 0, 1, 0],
-                     [0, 0, 0, 0, 0, 0, 0, 0]])
+A_matrix = np.array([[1, 0, 0, 0],
+                     [0, 1, 0, 0],
+                     [0, 0, 1, 0],
+                     [0, 0, 0, 0]])
 
-B_matrix = np.array([[-T*np.sin(X_matrix[-2,0]), 0],
-                     [T*np.cos(X_matrix[-2,0]), 0],
-                     [0, 0],
-                     [-np.sin(X_matrix[-2,0]), 0],
-                     [np.cos(X_matrix[-2,0]), 0],
-                     [0, 0],
-                     [T*np.tan(X_matrix[-1,0])/L, 0],
+B_matrix = np.array([[-sample_time*np.sin(X_matrix[-2,0]), 0],
+                     [sample_time*np.cos(X_matrix[-2,0]), 0],
+                     [sample_time*np.tan(X_matrix[-1,0])/wheelbase, 0],
                      [0, 1]])
 
 U_matrix = np.zeros((2,1))
 
-C_matrix = np.array([[1, 0, 0, 0, 0, 0, 0, 0],
-                     [0, 1, 0, 0, 0, 0, 0, 0],
-                     [0, 0, 1, 0, 0, 0, 0, 0],
-                     [0, 0, 0, 1, 0, 0, 0, 0],
-                     [0, 0, 0, 0, 1, 0, 0, 0],
-                     [0, 0, 0, 0, 0, 1, 0, 0],
-                     [0, 0, 0, 0, 0, 0, 1, 0]])
+C_matrix = np.array([[1, 0, 0, 0],
+                     [0, 1, 0, 0],
+                     [0, 0, 1, 0]])
 
-# I assumed an error of 100 m/s for velocity, 100 m/s^2 for acceleration, and 1 rad for yaw and steering angle
+P_matrix = np.zeros((4,4))
 
-P_matrix = np.array([[100, 0, 0, 0, 0, 0, 0, 0],
-                     [0, 100, 0, 0, 0, 0, 0, 0],
-                     [0, 0, 100, 0, 0, 0, 0, 0],
-                     [0, 0, 0, 100, 0, 0, 0, 0],
-                     [0, 0, 0, 0, 100, 0, 0, 0],
-                     [0, 0, 0, 0, 0, 100, 0, 0],
-                     [0, 0, 0, 0, 0, 0, 3, 0],
-                     [0, 0, 0, 0, 0, 0, 0, 3]])
+P_hat_matrix = np.zeros((4,4))
 
-P_hat_matrix = np.zeros((8,8))
-
-# I assumed a process noise of 0.01 for every state
-
-Q_matrix = np.array([[0.01, 0, 0, 0, 0, 0, 0, 0],
-                     [0, 0.01, 0, 0, 0, 0, 0, 0],
-                     [0, 0, 0.01, 0, 0, 0, 0, 0],
-                     [0, 0, 0, 0.01, 0, 0, 0, 0],
-                     [0, 0, 0, 0, 0.01, 0, 0, 0],
-                     [0, 0, 0, 0, 0, 0.01, 0, 0],
-                     [0, 0, 0, 0, 0, 0, 0.01, 0],
-                     [0, 0, 0, 0, 0, 0, 0, 0.01]])
+Q_matrix = np.array([[0.01, 0, 0, 0],
+                     [0, 0.01, 0, 0],
+                     [0, 0, 0.001, 0],
+                     [0, 0, 0, 0.01]])
 
 # In case of error was in degrees
-# R_matrix = np.array([[(2.269/2),0,0,0,0,0,0],
-#                      [0,(1.649/2),0,0,0,0,0],
-#                      [0,0,(2.269/2),0,0,0,0],
-#                      [0,0,0,(2.269/2),0,0,0],
-#                      [0,0,0,0,(1.649/2),0,0],
-#                      [0,0,0,0,0,(2.269/2),0],
-#                      [0,0,0,0,0,0,np.deg2rad((1.649/2))]])
+R_matrix = np.array([[(2.269/2), 0, 0],
+                     [0, (1.649/2), 0],
+                     [0, 0, np.deg2rad(1.649/2)]])
 
-# In case of error was in rad
-R_matrix = np.array([[(2.269/2),0,0,0,0,0,0],
-                     [0,(1.649/2),0,0,0,0,0],
-                     [0,0,(2.269/2),0,0,0,0],
-                     [0,0,0,(2.269/2),0,0,0],
-                     [0,0,0,0,(1.649/2),0,0],
-                     [0,0,0,0,0,(2.269/2),0],
-                     [0,0,0,0,0,0,(1.649/2)]])
-
-Z_matrix = np.zeros((6,1))
+Z_matrix = np.zeros((3,1))
 
 K_matrix = np.zeros_like(np.transpose(C_matrix))
 
-I_matrix = np.identity(8)
+I_matrix = np.identity(4)
 
 # Syncronization flags
 obtained_vd_flag = False
@@ -137,6 +103,14 @@ def odometry_callback(states:Odometry):
     global noisy_data
     global obtained_steering_flag
     global obtained_vd_flag
+    global sample_time
+    global odom_time_prev
+
+    # Update sampling time
+    curr_time = states.header.stamp
+    if odom_time_prev is not None:
+        sample_time = (curr_time - odom_time_prev).to_sec()
+    odom_time_prev = curr_time
 
     ground_truth = states
 
@@ -144,61 +118,36 @@ def odometry_callback(states:Odometry):
     ground_truth_yaw = euler_from_quaternion((states.pose.pose.orientation.x, states.pose.pose.orientation.y, states.pose.pose.orientation.z, states.pose.pose.orientation.w))[2]
 
     # In case of error was in degrees
-    # corrupted_ground_truth = np.array([[states.pose.pose.position.x + np.random.normal(0,np.sqrt(2.269/2))],
-    #                                   [states.pose.pose.position.y + np.random.normal(0,np.sqrt(1.649/2))],
-    #                                   [states.pose.pose.position.z + np.random.normal(0,np.sqrt(2.269/2))],
-    #                                   [states.twist.twist.linear.x + np.random.normal(0,np.sqrt(2.269/2))],
-    #                                   [states.twist.twist.linear.y + np.random.normal(0,np.sqrt(1.649/2))],
-    #                                   [states.twist.twist.linear.z + np.random.normal(0,np.sqrt(2.269/2))],
-    #                                   [ground_truth_yaw + np.deg2rad(np.random.normal(0,np.sqrt(1.649/2)))]])
-    
-    # In case of error was in rad
     corrupted_ground_truth = np.array([[states.pose.pose.position.x + np.random.normal(0,np.sqrt(2.269/2))],
                                       [states.pose.pose.position.y + np.random.normal(0,np.sqrt(1.649/2))],
-                                      [states.pose.pose.position.z + np.random.normal(0,np.sqrt(2.269/2))],
-                                      [states.twist.twist.linear.x + np.random.normal(0,np.sqrt(2.269/2))],
-                                      [states.twist.twist.linear.y + np.random.normal(0,np.sqrt(1.649/2))],
-                                      [states.twist.twist.linear.z + np.random.normal(0,np.sqrt(2.269/2))],
-                                      [ground_truth_yaw + np.random.normal(0,np.sqrt(1.649/2))]])
+                                      [ground_truth_yaw + np.random.normal(0,np.sqrt(np.deg2rad(1.649/2)))]])    
 
     Z_matrix = [[corrupted_ground_truth[0][0]],
                 [corrupted_ground_truth[1][0]],
-                [corrupted_ground_truth[2][0]],
-                [corrupted_ground_truth[3][0]],
-                [corrupted_ground_truth[4][0]],
-                [corrupted_ground_truth[5][0]],
-                [corrupted_ground_truth[6][0]]]
+                [corrupted_ground_truth[2][0]]]
     
+    noisy_data.header.stamp = ground_truth.header.stamp
     noisy_data.pose.pose.position.x = corrupted_ground_truth[0][0]
     noisy_data.pose.pose.position.y = corrupted_ground_truth[1][0]
-    noisy_data.pose.pose.position.z = corrupted_ground_truth[2][0]
-    noisy_data.twist.twist.linear.x = corrupted_ground_truth[3][0]
-    noisy_data.twist.twist.linear.y = corrupted_ground_truth[4][0]
-    noisy_data.twist.twist.linear.z = corrupted_ground_truth[5][0]
-    yaw_noisy = quaternion_from_euler(0,0,corrupted_ground_truth[6][0])
+    yaw_noisy = quaternion_from_euler(0,0,corrupted_ground_truth[2][0])
     noisy_data.pose.pose.orientation.x = yaw_noisy[0]
     noisy_data.pose.pose.orientation.y = yaw_noisy[1]
     noisy_data.pose.pose.orientation.z = yaw_noisy[2]
     noisy_data.pose.pose.orientation.w = yaw_noisy[3]
-
-    # Z_matrix = [[states.pose.pose.position.x + np.random.normal(0,np.sqrt(2.269/2))],
-    #             [states.pose.pose.position.y + np.random.normal(0,np.sqrt(1.649/2))],
-    #             [states.pose.pose.position.z + np.random.normal(0,np.sqrt(2.269/2))],
-    #             [states.twist.twist.linear.x + np.random.normal(0,np.sqrt(2.269/2))],
-    #             [states.twist.twist.linear.y + np.random.normal(0,np.sqrt(1.649/2))],
-    #             [states.twist.twist.linear.z + np.random.normal(0,np.sqrt(2.269/2))],
-    #             [ground_truth_yaw + np.random.normal(0,np.sqrt(1.649/2))]]
     
-    if obtained_vd_flag and obtained_steering_flag:
-            obtained_steering_flag = False
-            obtained_vd_flag = False
-            kalman_filter() 
+    if (sample_time > 0) and obtained_vd_flag and obtained_steering_flag:
+        obtained_steering_flag = False
+        obtained_vd_flag = False
+        kalman_filter()
+    
+    # Publish odometry messages
+    publish_msgs()
 
 def input_velocity_callback(input_throttle:Float64):
     global U_matrix
     global obtained_vd_flag
 
-    U_matrix[0,0] = input_throttle.data * max_velocity
+    U_matrix[0,0] = input_throttle.data
     obtained_vd_flag = True
 
 
@@ -217,13 +166,9 @@ def kalman_filter():
     global K_matrix
     global B_matrix
 
-    # Store old velocities
-    old_vx = X_matrix[3,0]
-    old_vy = X_matrix[4,0]
-    old_vz = X_matrix[5,0]
-
     # Predict state ahead
     X_hat_matrix = np.matmul(A_matrix, X_matrix) + np.matmul(B_matrix, U_matrix)
+    X_hat_matrix[2,0] = normalize_angle(X_hat_matrix[2,0])
 
     # Predict Error Covariance
     P_hat_matrix = np.matmul(np.matmul(A_matrix, P_matrix), np.transpose(A_matrix)) + Q_matrix
@@ -235,41 +180,56 @@ def kalman_filter():
     K_matrix = np.matmul(A,C)
 
     # Update State
-    X_matrix = X_hat_matrix + np.matmul(K_matrix, (Z_matrix - np.matmul(C_matrix, X_hat_matrix)))
-
-    # Check if the velocity had a drastic change
-    new_vx = X_matrix[3,0]
-    new_vy = X_matrix[4,0]
-    new_vz = X_matrix[5,0]
-    X_matrix[3,0] = X_matrix[3,0] if abs(new_vx-old_vx)<velocity_change_threashold else old_vx
-    X_matrix[4,0] = X_matrix[4,0] if abs(new_vy-old_vy)<velocity_change_threashold else old_vy
-    X_matrix[5,0] = X_matrix[5,0] if abs(new_vz-old_vz)<velocity_change_threashold else old_vz
+    Z_tilde_matrix = Z_matrix - np.matmul(C_matrix, X_hat_matrix)
+    Z_tilde_matrix[2,0] = normalize_angle(Z_tilde_matrix[2,0])
+    X_matrix = X_hat_matrix + np.matmul(K_matrix, Z_tilde_matrix)
+    X_matrix[2,0] = normalize_angle(X_matrix[2,0])
 
     # Update Error Covariance
     P_matrix = np.matmul((I_matrix - np.matmul(K_matrix, C_matrix)), P_hat_matrix)
 
     # Update the B_matrix for the next snapshot
-    B_matrix[0,0] = -T*np.sin(X_matrix[-2,0])
-    B_matrix[1,0] = T*np.cos(X_matrix[-2,0])
-    B_matrix[3,0] = -np.sin(X_matrix[-2,0])
-    B_matrix[4,0] = np.cos(X_matrix[-2,0])
-    B_matrix[6,0] = T*np.tan(X_matrix[-1,0])/L
-    
+    B_matrix[0,0] = -sample_time*np.sin(X_matrix[2,0])
+    B_matrix[1,0] = sample_time*np.cos(X_matrix[2,0])
+    B_matrix[2,0] = sample_time*np.tan(X_matrix[3,0])/wheelbase
+
+def publish_msgs():
     '''
         publishing
     '''
-    position = np.array([X_matrix[0,0], X_matrix[1,0], X_matrix[2,0]])
-    publish_current_position.publish(Vector3(position[0], position[1], position[2]))
+    odometry_estimate_msg = Odometry()
+    odometry_estimate_msg.header.stamp = ground_truth.header.stamp
 
-    velocity = np.array([X_matrix[3,0], X_matrix[4,0], X_matrix[5,0]])
-    publish_current_linear_velocity.publish(Vector3(velocity[0], velocity[1], velocity[2]))
+    # Set position field
+    position = np.array([X_matrix[0,0], X_matrix[1,0]])
+    odometry_estimate_msg.pose.pose.position.x = position[0]
+    odometry_estimate_msg.pose.pose.position.y = position[1]
 
-    heading = X_matrix[-2,0]
-    publish_current_heading.publish(Float64(heading))
+    # Set orientation field by converting heading into a quaternion
+    heading = X_matrix[2,0]
+    quat = quaternion_from_euler(0.0, 0.0, heading)
+    odometry_estimate_msg.pose.pose.orientation.x = quat[0]
+    odometry_estimate_msg.pose.pose.orientation.y = quat[1]
+    odometry_estimate_msg.pose.pose.orientation.z = quat[2]
+    odometry_estimate_msg.pose.pose.orientation.w = quat[3]
 
+    # Set velocity field
+    odometry_estimate_msg.twist.twist.linear.x = ground_truth.twist.twist.linear.x
+    odometry_estimate_msg.twist.twist.linear.y = ground_truth.twist.twist.linear.y
+    
+    publish_odometry_estimate.publish(odometry_estimate_msg)
     publish_ground_truth.publish(ground_truth)
     publish_noisy_data.publish(noisy_data)
 
+# Function for normalizing angles in rad to range from [-π, π]
+def normalize_angle(angle):
+    angle = np.fmod(angle, 2*np.pi)  # Normalize angle to be within [0, 2π]
+    
+    if angle > np.pi:  # Shift to [-π, π] if necessary
+        angle -= 2.0 * np.pi
+    elif angle<-np.pi:
+        angle+= 2*np.pi    
+    return angle
 
 if __name__ == '__main__':
 
@@ -280,14 +240,11 @@ if __name__ == '__main__':
 
     ####################### Topics declarations #######################
 
-    odometry_topic = ("/odom", Odometry)
+    odometry_topic_name = rospy.get_param("~odometry_topic_name", "/odometry")
+    input_velocity_topic_name = rospy.get_param("~velocity_topic_name", "/velocity")
+    input_steering_topic_name = rospy.get_param("~steering_topic_name", "/steering")
 
-    input_velocity_topic = ("/cmd_vel", Float64)
-    input_steering_angle_topic = ("/SteeringAngle", Float64)
-
-    position_topic = ("/current_position", Vector3)
-    linear_velocity_topic = ("/current_linear_velocity", Vector3)
-    heading_topic = ("/current_heading", Float64)
+    odometry_estimate_topic = ("/state_estimator/odometry", Odometry)
 
     ####################### Syncronization topic #######################
 
@@ -296,16 +253,13 @@ if __name__ == '__main__':
 
     ####################### Node subscriptions #######################
 
-    odometry_subsrciber = rospy.Subscriber(odometry_topic[0], odometry_topic[1], odometry_callback)
-
-    input_velocity_subscriber = rospy.Subscriber(input_velocity_topic[0], input_velocity_topic[1], input_velocity_callback)
-    input_steering_angle_subscriber = rospy.Subscriber(input_steering_angle_topic[0], input_steering_angle_topic[1], input_steering_angle_callback)
+    odometry_subsrciber = rospy.Subscriber(odometry_topic_name, Odometry, odometry_callback)
+    input_velocity_subscriber = rospy.Subscriber(input_velocity_topic_name, Float64, input_velocity_callback)
+    input_steering_angle_subscriber = rospy.Subscriber(input_steering_topic_name, Float64, input_steering_angle_callback)
 
     ####################### Node publications #######################
 
-    publish_current_heading = rospy.Publisher(heading_topic[0], heading_topic[1], queue_size=0)
-    publish_current_position = rospy.Publisher(position_topic[0], position_topic[1], queue_size=0)
-    publish_current_linear_velocity = rospy.Publisher(linear_velocity_topic[0], linear_velocity_topic[1], queue_size=0)
+    publish_odometry_estimate = rospy.Publisher(odometry_estimate_topic[0], odometry_estimate_topic[1], queue_size=0)
 
     ####################### Node syncronization #######################
     publish_ground_truth = rospy.Publisher(ground_truth_topic[0],ground_truth_topic[1],queue_size=0)

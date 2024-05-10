@@ -1,16 +1,15 @@
 <launch>
-    <arg name="sampling_rate" default="100" />
     <arg name="node" default="ms" />
-    <arg name="path" default="straight" />
-    <!-- Type of path: 'straight', 'circular', 'lane_change', 'infinity' -->
-    
-    <include file="$(find vehicle_control_pkg)/launch/system.launch"> 
-        <arg name="controller_type" default="open_loop" />
-        <arg name="path" default="$(arg path)" />
-    </include>
+    <arg name="odometry_topic_name" default="/odom" />
+    <arg name="steering_topic_name" default="/SteeringAngle" />
+    <arg name="velocity_topic_name" default="/longitudinal_controller/velocity_target" />
+    <arg name="wheelbase" default="2.269" />
 
     <node name = "state_estimator" pkg="autonomx_state_estimator" type="state_estimator_$(arg node).py" output="screen" respawn="true" >
-        <!-- <arg name="frequency" default="$(arg sampling_rate)" /> -->
+        <param name="odometry_topic_name" value="$(arg odometry_topic_name)" />
+        <param name="steering_topic_name" value="$(arg steering_topic_name)" />
+        <param name="velocity_topic_name" value="$(arg velocity_topic_name)" />
+        <param name="wheelbase" value="$(arg wheelbase)" />
     </node>
 
     
