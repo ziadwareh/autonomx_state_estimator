@@ -204,6 +204,7 @@ def publish_msgs():
     position = np.array([X_matrix[0,0], X_matrix[1,0]])
     odometry_estimate_msg.pose.pose.position.x = position[0]
     odometry_estimate_msg.pose.pose.position.y = position[1]
+    odometry_estimate_msg.pose.pose.position.z = ground_truth.pose.pose.position.z
 
     # Set orientation field by converting heading into a quaternion
     heading = X_matrix[2,0]
