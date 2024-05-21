@@ -47,11 +47,11 @@ velocity_change_threshold = 2
 '''
 
 # [x, y, yaw, steering angle]T
-X_matrix = np.zeros((4,1))
-# X_matrix = np.array([[0.0], [-73.8655], [0.0], [0.0]])
+# X_matrix = np.zeros((4,1))
+X_matrix = np.array([[-2.925], [-27.15077], [np.pi/2], [0.0]])
 
-X_hat_matrix = np.zeros((4,1))
-# X_hat_matrix = np.array([[0.0], [-73.8655], [0.0], [0.0]])
+# X_hat_matrix = np.zeros((4,1))
+X_hat_matrix = np.array([[-2.925], [-27.15077], [np.pi/2], [0.0]])
 
 A_matrix = np.array([[1, 0, 0, 0],
                      [0, 1, 0, 0],
@@ -118,9 +118,11 @@ def odometry_callback(states:Odometry):
     ground_truth_yaw = euler_from_quaternion((states.pose.pose.orientation.x, states.pose.pose.orientation.y, states.pose.pose.orientation.z, states.pose.pose.orientation.w))[2]
 
     # In case of error was in degrees
-    corrupted_ground_truth = np.array([[states.pose.pose.position.x + np.random.normal(0,np.sqrt(2.269/2))],
-                                      [states.pose.pose.position.y + np.random.normal(0,np.sqrt(1.649/2))],
-                                      [ground_truth_yaw + np.random.normal(0,np.sqrt(np.deg2rad(1.649/2)))]])    
+    # noise_variance = [2.269/2, 1.649/2, np.deg2rad(1.649/2)]
+    noise_variance = [0.25, 0.25, np.deg2rad(1.649/2)]
+    corrupted_ground_truth = np.array([[states.pose.pose.position.x + np.random.normal(0,np.sqrt(noise_variance[0]))],
+                                      [states.pose.pose.position.y + np.random.normal(0,np.sqrt(noise_variance[1]))],
+                                      [ground_truth_yaw + np.random.normal(0,np.sqrt(noise_variance[2]))]])    
 
     Z_matrix = [[corrupted_ground_truth[0][0]],
                 [corrupted_ground_truth[1][0]],
